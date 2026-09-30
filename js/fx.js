@@ -99,6 +99,13 @@ const FX = (function () {
     }
     kick();
   }
+  /* 金貨のシャワー */
+  function coins(n, dur) {
+    for (let i = 0; i < n; i++) {
+      parts.push({ coin: true, t: -rnd(0, dur), life: rnd(1.5, 2.3), x: rnd(60, CW - 60), y: -OFF - 30, vx: rnd(-50, 50), vy: rnd(380, 720), g: 700, drag: 0.15, size: rnd(13, 24), rot: rnd(0, 6), vr: rnd(-2, 2), sp: rnd(7, 13), c: 'gold', tw: 0 });
+    }
+    kick();
+  }
   /* 金箔の紙吹雪 */
   function flakes(n, dur, cols) {
     for (let i = 0; i < n; i++) {
@@ -142,6 +149,23 @@ const FX = (function () {
         alpha *= 0.75 + 0.25 * Math.sin(p.t * 14 + p.tw); // きらめき
       }
       ctx.globalAlpha = Math.max(0, alpha);
+      if (p.coin) { // 回転しながら降る金貨
+        p.rot += p.vr * dt;
+        const sq = Math.cos(p.t * p.sp);
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.translate(p.x, p.y + OFF);
+        ctx.rotate(p.rot);
+        ctx.scale(1, Math.max(0.12, Math.abs(sq)));
+        ctx.fillStyle = sq > 0 ? '#e9b93c' : '#b8862b';
+        ctx.beginPath(); ctx.arc(0, 0, size, 0, 6.2832); ctx.fill();
+        ctx.fillStyle = sq > 0 ? '#fff1b8' : '#e9c25e';
+        ctx.beginPath(); ctx.arc(0, 0, size * 0.72, 0, 6.2832); ctx.fill();
+        ctx.fillStyle = sq > 0 ? '#f0c04c' : '#c8922e';
+        ctx.beginPath(); ctx.arc(0, 0, size * 0.55, 0, 6.2832); ctx.fill();
+        ctx.restore();
+        continue;
+      }
       if (p.flake) { // ひらひら舞う金箔
         p.rot += p.vr * dt;
         const c = COLORS[p.c];
@@ -217,5 +241,5 @@ const FX = (function () {
     ctx = cv.getContext('2d');
   }
 
-  return { init, burst, converge, rain, ring, setAmbient, clear, streaks, lightning, fountain, flakes };
+  return { init, burst, converge, rain, ring, setAmbient, clear, streaks, lightning, fountain, flakes, coins };
 })();
