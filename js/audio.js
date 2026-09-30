@@ -411,6 +411,12 @@ const Sfx = (function () {
       clang(0.42, 0.1, 1.1); gong(hz(36), 0.42, 1.4, 0.2);
       noise({ ft: 'lowpass', f: 160, at: 0.5, d: 0.9, g: 0.5 }); // 残響の地鳴り
     },
+    slam(p) { // 扉が1枚ぶつかる（p が大きいほど高い音）
+      sub(0, 0.35, 1.0); kick(0, 1);
+      noise({ ft: 'lowpass', f: 1600, d: 0.1, g: 0.55 });
+      clang(0, 0.08, 0.6);
+      bell(hz(ROOT[stage] + Math.round((p || 0) * 12)), 0.02, 0.5, 0.12, { pan: -0.5 + (p || 0) });
+    },
     shutterOpen() {
       tone({ f: 60, f2: 40, d: 0.15, g: 0.6 });
       whoosh(0, 0.55, 0.28, true);
