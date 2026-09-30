@@ -26,6 +26,35 @@ const Game = (function () {
     if (typeof FX !== 'undefined') FX.setGround(900 + (H - 900) / 2 + 6, () => Sfx.play('chip'));
   }
 
+  /* 時間の速さを from → to へ指数関数的に変える（粒子と画面上のアニメーション全体が対象）。
+     例: bulletTime(0.15, 0.5) … 0.15秒ほぼ止まり、0.5秒かけて指数的に等速へ戻る */
+  let warpRaf = 0;
+  function applyRate(rate) {
+    FX.setTimeScale(rate);
+    if (!stageEl.getAnimations) return;
+    try { stageEl.getAnimations({ subtree: true }).forEach((an) => { an.playbackRate = rate; }); } catch (e) { /* 非対応ブラウザは粒子のみ */ }
+  }
+  function timeWarp(from, to, dur) {
+    cancelAnimationFrame(warpRaf);
+    const t0 = performance.now();
+    let lastSet = 0;
+    const step = (now) => {
+      const u = Math.min(1, (now - t0) / (dur * 1000));
+      if (now - lastSet > 45 || u >= 1) { lastSet = now; applyRate(from * Math.pow(to / from, u)); }
+      if (u < 1) warpRaf = requestAnimationFrame(step);
+    };
+    applyRate(from);
+    warpRaf = requestAnimationFrame(step);
+  }
+  function bulletTime(hold, ramp, slow) {
+    cancelAnimationFrame(warpRaf);
+    applyRate(slow || 0.06);
+    const iv = setInterval(() => applyRate(slow || 0.06), 45); // 止まっている間に生まれたアニメにも適用
+    setTimeout(() => { clearInterval(iv); timeWarp(slow || 0.06, 1, ramp); }, hold * 1000);
+  }
+  /* 筐体を奥へ叩き込む（3D） */
+  function bump() { restart($('cab3d'), 'bump'); }
+
   /* 連続フラッシュ */
   function strobe(n, gap) { for (let i = 0; i < n; i++) setTimeout(() => flash(true), i * (gap || 130)); }
   /* 暗転（sec 秒）。明ける瞬間に閃光。 */
@@ -78,11 +107,12 @@ const Game = (function () {
   const Lever = (function () {
     const TRAVEL = 400, NOTCH = 40;
     let y = 0, v = 0, enabled = false, dragging = false, startY = 0, startPos = 0, raf = 0, notch = 0, homeSound = false;
-    let el, knob, glow, led, onPull = null;
+    let el, knob, glow, led, cab3d = null, onPull = null;
 
     function set(ny) {
       y = ny;
       knob.style.transform = 'translate3d(0,' + y.toFixed(2) + 'px,0)';
+      if (cab3d) { cab3d.style.setProperty('--ry', ((y / TRAVEL) * 7).toFixed(2) + 'deg'); cab3d.style.setProperty('--rx', ((y / TRAVEL) * -4).toFixed(2) + 'deg'); }
       glow.style.height = (y + 56).toFixed(1) + 'px';
     }
     // 減衰バネで目標位置へ。上端に当たると小さく跳ね返る（重量感）
@@ -144,6 +174,7 @@ const Game = (function () {
       set(TRAVEL); v = 0;
       Sfx.play('leverCommit');
       restart(cabinet, 'thud');
+      bump();
       if (onPull) onPull();
       setTimeout(() => { homeSound = true; Sfx.play('leverReturn'); spring(0, 150, 12); }, 280);
     }
@@ -154,6 +185,7 @@ const Game = (function () {
       if (!on && dragging) { dragging = false; el.classList.remove('grab'); spring(0, 170, 14); }
     }
     function init(cb) {
+      cab3d = $('cab3d');
       el = $('lever'); knob = $('leverKnob'); glow = $('leverGlow'); led = $('leverLed');
       onPull = cb;
       knob.addEventListener('pointerdown', down);
@@ -413,155 +445,135 @@ const Game = (function () {
         $('content').querySelector('.spot').style.opacity = '';
         Sfx.play('stop');
         restart(cabinet, 'thud');
+        bump();
       },
     }, pat);
   }
 
-  /* NEXT STAGE 突入演出（長尺）:
-     静止 → 画面ごとズームしながら光を吸い込む（集中線・稲妻） → 大爆発（画面揺れ・文字が1文字ずつ飛び込む・
-     噴き上がる火花・金箔・花火） → 金庫扉が閉まる → ロックが1つずつ外れる → ステージ名の刻印
-     → ドラムロール → 継ぎ目から光が溢れ、ズームアウトしながら扉が開く */
+  /* NEXT STAGE 突入（レバー待ちに戻るまで合計5秒以内）:
+     暗転の一拍 → カメラがリールへ突っ込む（指数加速）→ 爆発（一瞬スローになってから弾ける）→ 移行パターン → 到着 */
   const RUNG_Y = { 1: 620, 2: 430, 3: 240 };
+  const rnd = (a, b) => a + Math.random() * (b - a);
   async function nextStageFx(st) {
     const to = st + 1, fin = to === 3;
     const colors = STAGE_COL[to], ACC = STAGE_ACC[to]; // 次のステージの色で演出する
     const content = $('content');
     const timers = [];
     const later = (sec, fn) => timers.push(setTimeout(fn, sec * 1000));
-    const zap = (x1, y1, x2, y2) => { FX.lightning(x1, y1, x2, y2, Math.random() < 0.6 ? ACC : 'white', fin ? 5 : 4); Sfx.play('zap'); };
 
-    // 1. 静止 → チャージ（画面がリールへ寄っていく）
+    // 1. 暗転の一拍 → チャージ
     setPlate('spin', 'NEXT STAGE', '');
-    await wait(600);
-    await blackout(1.3);                 // 暗転して一拍
-    flash(true);
+    await wait(250);
     $('dim').classList.add('on');
     win.classList.add('win');
     cabinet.classList.add('party', 'tremble');
     content.classList.add('zoom-charge');
-    Sfx.play('riser', 2.8);
+    Sfx.play('riser', 1.0);
     Sfx.play('warp');
-    FX.converge(CX, CY, fin ? 360 : 260, 2.8);
-    FX.streaks(CX, CY, fin ? 220 : 150, 2.6, { inward: true, colors });
-    later(0.8, () => FX.converge(CX, CY, fin ? 280 : 180, 1.1));
-    [0.9, 1.5, 1.9, 2.2, 2.45, 2.65].slice(0, fin ? 6 : 4).forEach((t) => later(t, () => { const a = Math.random() * 6.28; zap(CX + Math.cos(a) * 760, CY + Math.sin(a) * 460, CX, CY); }));
-    await wait(2800);
+    FX.converge(CX, CY, fin ? 300 : 220, 1.0);
+    FX.streaks(CX, CY, fin ? 160 : 110, 0.9, { inward: true, colors });
+    [0.45, 0.7, 0.85].slice(0, fin ? 3 : 2).forEach((t) => later(t, () => { const an = Math.random() * 6.28; FX.lightning(CX + Math.cos(an) * 760, CY + Math.sin(an) * 460, CX, CY, Math.random() < 0.6 ? ACC : 'white', 4); Sfx.play('zap'); }));
+    await wait(1000);
 
-    // 2. 大爆発
+    // 2. 爆発
     cabinet.classList.remove('tremble');
     content.classList.remove('zoom-charge');
     content.classList.add('zoom-punch');
     quake();
     flash(false);
-    restart(cabinet, 'shake');
+    bump();
     Sfx.play('impact');
-    for (let i = 0; i < (fin ? 10 : 6); i++) { const a = (i / (fin ? 10 : 6)) * 6.28 + Math.random() * 0.4; FX.lightning(CX, CY, CX + Math.cos(a) * 900, CY + Math.sin(a) * 560, i % 2 ? ACC : 'white', 5); }
+    for (let i = 0; i < (fin ? 10 : 6); i++) { const an = (i / (fin ? 10 : 6)) * 6.28 + Math.random() * 0.4; FX.lightning(CX, CY, CX + Math.cos(an) * 900, CY + Math.sin(an) * 560, i % 2 ? ACC : 'white', 5); }
     FX.ring(CX, CY, 'white', 1100, 0.8);
     later(0.14, () => FX.ring(CX, CY, ACC, 1300, 1.0));
-    later(0.3, () => FX.ring(CX, CY, ACC, 1500, 1.2));
-    FX.burst(CX, CY, fin ? 480 : 340, { max: fin ? 1900 : 1600, life: 2, size: 28, colors });
-    FX.streaks(CX, CY, fin ? 260 : 180, fin ? 3.0 : 2.3, { colors });
-    FX.fountain(120, 930, fin ? 160 : 110, fin ? 2.8 : 2.0, colors, { vx: 160 });
-    FX.fountain(1480, 930, fin ? 160 : 110, fin ? 2.8 : 2.0, colors, { vx: -160 });
-    FX.flakes(fin ? 200 : 130, 2.0, colors);
+    FX.burst(CX, CY, fin ? 460 : 340, { max: fin ? 1900 : 1600, life: 2, size: 28, colors });
+    FX.streaks(CX, CY, fin ? 220 : 160, 1.0, { colors });
+    FX.fountain(120, 930, fin ? 110 : 80, 0.9, colors, { vx: 160 });
+    FX.fountain(1480, 930, fin ? 110 : 80, 0.9, colors, { vx: -160 });
+    FX.flakes(fin ? 160 : 110, 0.9, colors);
     showBanner('next' + (fin ? ' final' : ''), fin ? 'FINAL STAGE' : 'STAGE UP', 'NEXT STAGE');
-
     stageEl.dataset.win = fin ? 7 : 6; // 画面全体を当選時と同じ全開状態に
-    for (let t = 0.5; t < (fin ? 5.4 : 4.2); t += fin ? 0.24 : 0.34) {
-      later(t, () => {
-        const x = 200 + Math.random() * 1200, y = 110 + Math.random() * 480;
-        Sfx.play('pop');
-        setTimeout(() => { FX.burst(x, y, 80, { max: 700, colors }); FX.ring(x, y, Math.random() < 0.5 ? ACC : 'white', 280, 0.5); }, 300);
-      });
-    }
-    later(0.75, () => { quake(); FX.ring(CX, CY, 'white', 1400, 0.9); }); // 文字が揃った瞬間の追撃
-    if (fin) later(1.7, () => { flash(false); quake(); restart(cabinet, 'shake'); Sfx.play('thunder'); FX.ring(CX, CY, ACC, 1500, 1.0); FX.burst(CX, CY, 320, { max: 1800, life: 2, colors }); for (let i = 0; i < 6; i++) zap(CX, CY, rnd(0, 1600), rnd(0, 900)); });
-    later(2.4, () => { strobe(4); quake(); FX.ring(CX, CY, ACC, 1500, 1.0); FX.burst(CX, CY, 280, { max: 1700, life: 2, colors }); Sfx.play('stamp'); });
-    if (fin) later(3.8, () => { strobe(6, 100); quake(); Sfx.play('thunder'); FX.burst(CX, CY, 320, { max: 1800, life: 2, colors }); });
-    await wait(fin ? 5800 : 4600);
+    bulletTime(0.16, 0.5);             // 弾けた瞬間に時間が止まり、指数的に加速して戻る
+    later(0.7, () => { strobe(3, 90); Sfx.play('pop'); });
+    await wait(1200);
     timers.forEach(clearTimeout);
     delete stageEl.dataset.win;
     content.classList.remove('zoom-punch');
-    await hideBanner();
+    hideBanner();                      // 文字はカメラ手前へ飛び去りながら次へ
     $('dim').classList.remove('on');
 
-    // 3. 扉が閉まり、開門の儀式へ
+    // 3. 移行
     await stageTransition(to);
     win.classList.remove('win');
     cabinet.classList.remove('party');
   }
-  const rnd = (a, b) => a + Math.random() * (b - a);
 
   const STAGE_NAMES = { 2: 'SAPPHIRE STAGE', 3: 'RUBY FINAL' };
-  const HANDS_UNUSED = {
-    2: { name: 'FOUR OF A KIND', cards: [['A', '\u2660'], ['A', '\u2665'], ['A', '\u2666'], ['A', '\u2663'], ['K', '\u2660']] },
-    3: { name: 'ROYAL FLUSH', cards: [['10', '\u2660'], ['J', '\u2660'], ['Q', '\u2660'], ['K', '\u2660'], ['A', '\u2660']] },
-  };
-  const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const frame = () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
   function mk(cls, html) { const d = document.createElement('div'); d.className = cls; if (html) d.innerHTML = html; $('trans').appendChild(d); return d; }
 
-  /* ステージ移行。パターンを毎回ランダムに選ぶ（同じものは連続させない）:
-       shatter … 画面のガラスにヒビが入り、砕け散る
-       chips   … チップがどんどん積み上がって画面を埋め、弾け飛ぶ
-       vault   … 金庫扉が閉まり、ドラムロールのあと開く */
-  const TRANS = { shatter: transShatter, chips: transChips, vault: transVault };
+  /* ステージ移行のパターン（ランダム）:
+       shatter … 画面のガラスにヒビが入り、破片がカメラへ向かって砕け散る
+       vault   … 金庫扉が閉まり、立体チップが叩きつけられ、開く */
+  const TRANS = { shatter: transShatter, vault: transVault };
   async function stageTransition(to) {
     const names = Object.keys(TRANS);
     let p = window.__fxTest && window.__fxTest.trans;
-    if (!TRANS[p]) { do p = names[Math.floor(Math.random() * names.length)]; while (p === lastTrans); }
-    lastTrans = p;
+    if (!TRANS[p]) p = names[Math.floor(Math.random() * names.length)];
     $('trans').innerHTML = '';
-    await blackout(1.0);                 // 移行の前に暗転
     await TRANS[p](to);
     $('trans').innerHTML = '';
   }
 
-  /* ステージ名の刻印（叩きつける） */
+  /* ステージ名の立体チップが、回転しながら奥から飛んできて叩きつけられる（約0.5秒）→ hold ミリ秒見せる */
   async function stampStage(to, hold) {
     const label = $('shutterLabel'), fin = to === 3;
     label.querySelector('b').textContent = to;
     label.querySelector('em').textContent = STAGE_NAMES[to] || '';
-    label.classList.remove('stamp'); void label.offsetWidth;
+    label.classList.remove('stamp', 'out'); void label.offsetWidth;
     label.classList.add('show', 'stamp');
     stageEl.classList.add('named');
     stageEl.classList.toggle('fin', fin);
-    await wait(330);
+    Sfx.play('warp');
+    await wait(500);
     Sfx.play('stamp');
     quake();
     flash(true);
     FX.ring(800, 450, STAGE_ACC[to], 1000, 0.9);
-    FX.ring(800, 450, 'white', 700, 0.6);
-    FX.burst(800, 450, fin ? 300 : 200, { max: 1300, life: 1.6, colors: STAGE_COL[to] });
-    FX.streaks(800, 450, 120, 0.5, { colors: STAGE_COL[to] });
+    FX.burst(800, 450, fin ? 260 : 180, { max: 1300, life: 1.4, colors: STAGE_COL[to] });
+    FX.streaks(800, 450, 100, 0.4, { colors: STAGE_COL[to] });
     await wait(hold);
   }
-  function hideStamp() { $('shutterLabel').classList.remove('show', 'stamp'); stageEl.classList.remove('named'); }
+  async function hideStamp() { // チップはカメラ手前へ飛び去る
+    const label = $('shutterLabel');
+    label.classList.add('out');
+    await wait(220);
+    label.classList.remove('show', 'stamp', 'out');
+    stageEl.classList.remove('named');
+  }
 
-  /* 新しいステージに到着: ズームアウトしながら全体が弾ける。全パターン共通の締め。 */
+  /* 新しいステージに到着: 奥から飛び込むカメラ（指数減速）と同時に全体が弾ける */
   async function arrive(to, title) {
     const fin = to === 3, colors = STAGE_COL[to], ACC = STAGE_ACC[to], content = $('content');
     if (curStage !== to) setStage(to); else FX.setAmbient([0, 0, 14, 30][to], colors);
     Sfx.play('open', fin);
     content.classList.add('reveal');
-    restart(cabinet, 'shake');
+    bump();
     stageEl.dataset.win = fin ? 7 : 6;
     FX.ring(CX, CY, 'white', 1300, 1.0);
     setTimeout(() => FX.ring(CX, CY, ACC, 1500, 1.2), 160);
-    FX.burst(CX, CY, fin ? 460 : 320, { max: 1700, life: 2, size: 26, colors });
-    FX.streaks(CX, CY, fin ? 240 : 160, 1.2, { colors });
-    [200, 600, 1000, 1400].forEach((x, i) => FX.fountain(x, 930, fin ? 90 : 60, 1.4 + i * 0.1, colors));
-    FX.flakes(fin ? 220 : 140, 1.6, colors);
-    // ステージ表示を光が駆け上がり、新しいステージが点灯する
-    const y0 = RUNG_Y[to - 1], y1 = RUNG_Y[to];
-    for (let i = 0; i <= 8; i++) setTimeout(() => FX.burst(180, y0 + ((y1 - y0) * i) / 8, 14, { max: 260, life: 0.6, size: 12, colors }), 300 + i * 50);
-    setTimeout(() => { FX.ring(180, y1, ACC, 260, 0.6); FX.burst(180, y1, 90, { max: 600, colors }); }, 760);
-    setTimeout(() => strobe(3), 500);
-    if (title) { await wait(700); await stampStage(to, 1900); hideStamp(); await wait(300); }
-    else await wait(2600);
+    FX.burst(CX, CY, fin ? 420 : 300, { max: 1700, life: 1.8, size: 26, colors });
+    FX.streaks(CX, CY, fin ? 200 : 140, 0.8, { colors });
+    [200, 600, 1000, 1400].forEach((x) => FX.fountain(x, 930, fin ? 70 : 50, 0.7, colors));
+    FX.flakes(fin ? 160 : 110, 0.9, colors);
+    const y0 = RUNG_Y[to - 1], y1 = RUNG_Y[to]; // ステージ表示を光が駆け上がる
+    for (let i = 0; i <= 6; i++) setTimeout(() => FX.burst(180, y0 + ((y1 - y0) * i) / 6, 14, { max: 260, life: 0.6, size: 12, colors }), 120 + i * 40);
+    setTimeout(() => { FX.ring(180, y1, ACC, 260, 0.6); FX.burst(180, y1, 80, { max: 600, colors }); }, 420);
+    if (title) { await wait(420); await stampStage(to, 380); await hideStamp(); await wait(80); } // スローが明けてからチップを出す
+    else await wait(750);
     content.classList.remove('reveal');
     stageEl.classList.remove('fin');
     delete stageEl.dataset.win;
-    await wait(250);
   }
 
   /* ---- ガラス ----
@@ -612,31 +624,29 @@ const Game = (function () {
         svg.remove();
         shards.forEach((s) => {
           const dx = s.mx - cx, dy = s.my - cy, L = Math.hypot(dx, dy) || 1, far = 500 + Math.random() * 700;
-          const dur = 0.8 + Math.random() * 0.6, delay = s.ring * 0.05 + Math.random() * 0.08;
-          s.el.style.transition = 'transform ' + dur + 's cubic-bezier(.2,.4,.7,1) ' + delay + 's, opacity ' + (dur * 0.5) + 's ease-in ' + (delay + dur * 0.5) + 's';
-          s.el.style.transform = 'translate(' + ((dx / L) * far).toFixed(0) + 'px,' + ((dy / L) * far + 380).toFixed(0) + 'px) rotate3d(' + Math.random().toFixed(2) + ',' + Math.random().toFixed(2) + ',' + Math.random().toFixed(2) + ',' + (200 + Math.random() * 500).toFixed(0) + 'deg) scale(.7)';
+          const dur = 0.7 + Math.random() * 0.5, delay = s.ring * 0.04 + Math.random() * 0.06;
+          s.el.style.transition = 'transform ' + dur + 's cubic-bezier(.7,0,.84,0) ' + delay + 's, opacity ' + (dur * 0.5) + 's ease-in ' + (delay + dur * 0.5) + 's';
+          s.el.style.transform = 'translate3d(' + ((dx / L) * far).toFixed(0) + 'px,' + ((dy / L) * far + 260).toFixed(0) + 'px,' + (500 + Math.random() * 1100).toFixed(0) + 'px) rotate3d(' + Math.random().toFixed(2) + ',' + Math.random().toFixed(2) + ',' + Math.random().toFixed(2) + ',' + (200 + Math.random() * 500).toFixed(0) + 'deg) scale(.7)';
           s.el.style.opacity = 0;
         });
       },
     };
   }
-  /* ヒビ（steps 段階）→ 粉砕。粉砕の瞬間にステージが切り替わる。 */
-  async function breakGlass(to, steps) {
+  /* ヒビ（3段階）→ 粉砕。粉砕の瞬間にステージが切り替わる。 */
+  async function breakGlass(to) {
     const fin = to === 3, g = glass();
-    const plan = steps >= 3 ? [[0], [1], [2]] : steps === 2 ? [[0], [1, 2]] : [[0, 1, 2]];
     await frame();
-    for (let i = 0; i < plan.length; i++) {
-      plan[i].forEach((k) => g.crack(k));
+    for (let i = 0; i < 3; i++) {
+      g.crack(i);
       Sfx.play('crack', i / 2);
-      restart(cabinet, 'thud');
-      FX.burst(g.cx, g.cy - 0, 40 + i * 30, { max: 500 + i * 300, life: 0.7, size: 12, colors: ['white', 'silver'] });
-      if (fin && i > 0) { flash(true); Sfx.play('thunder'); FX.lightning(rnd(200, 1400), -80, g.cx, 450, 'red', 5); }
+      restart(cabinet, 'thud'); bump();
       flash(true);
-      await wait(fin ? 950 : 800);
+      FX.burst(g.cx, g.cy, 40 + i * 30, { max: 500 + i * 300, life: 0.7, size: 12, colors: ['white', 'silver'] });
+      if (fin && i === 2) { Sfx.play('thunder'); FX.lightning(rnd(200, 1400), -80, g.cx, 450, 'red', 5); }
+      await wait([220, 170, 130][i]); // ヒビの間隔もだんだん詰まる
     }
     g.light();
-    Sfx.play('heartbeat');
-    await wait(900);                     // 割れる直前の溜め
+    await wait(110);
     Sfx.play('shatter');
     flash(false);
     quake();
@@ -644,14 +654,12 @@ const Game = (function () {
     g.burst();
     FX.burst(CX, CY, 260, { max: 1800, life: 1.4, size: 16, colors: ['white', 'silver', 'white'] });
     FX.streaks(CX, CY, 140, 0.5, { colors: ['white', 'silver'] });
+    bulletTime(0.14, 0.45); // 破片が宙で止まり、指数的に加速して飛び去る
   }
 
   async function transShatter(to) {
-    await stampStage(to, 1400);          // ガラスに次のステージ名が刻まれる
-    hideStamp();
-    await wait(300);
-    await breakGlass(to, 3);
-    await arrive(to, false);
+    await breakGlass(to);
+    await arrive(to, true);
   }
 
   /* ---- カード（AA の確定演出で使用） ---- */
@@ -662,39 +670,11 @@ const Game = (function () {
   }
   const place = (el, x, y, rz, ry, s) => { el.style.transform = 'translate(' + x + 'px,' + y + 'px) rotateZ(' + rz + 'deg) rotateY(' + ry + 'deg) scale(' + s + ')'; };
 
-  async function transChips(to) {
-    const fin = to === 3, cols = fin ? ['red', 'gold', 'black', 'white'] : ['blue', 'white', 'black', 'purple'];
-    const cover = mk('cover');
-    await frame();
-    cover.classList.add('on');
-    FX.setAmbient(0);
-    // 少しずつ → どんどん → 雪崩、と3段階で積み上がる
-    const waves = fin ? [[60, 1.2, 22], [140, 1.4, 27], [260, 1.6, 32], [200, 1.2, 36]] : [[60, 1.2, 22], [140, 1.4, 27], [240, 1.6, 32]];
-    for (let i = 0; i < waves.length; i++) {
-      FX.chips(waves[i][0], waves[i][1], cols, { land: true, size: waves[i][2] });
-      Sfx.play('chipfall', waves[i][1] + 0.4);
-      if (i > 0) { flash(true); restart(cabinet, 'thud'); }
-      await wait(waves[i][1] * 1000 + 250);
-    }
-    await wait(900);
-    await blackout(0.7, false);
-    setStage(to);
-    FX.setAmbient(0);
-    await stampStage(to, fin ? 2400 : 1800);
-    if (fin) { strobe(5, 110); Sfx.play('thunder'); await wait(500); }
-    hideStamp();
-    FX.releasePile();                     // チップが弾け飛ぶ
-    Sfx.play('impact'); Sfx.play('chipfall', 1);
-    cover.classList.remove('on');
-    flash(false); quake();
-    await arrive(to, false);
-  }
-
   async function transVault(to) {
-    const fin = to === 3, colors = STAGE_COL[to], ACC = STAGE_ACC[to];
+    const fin = to === 3, colors = STAGE_COL[to];
     stageEl.classList.remove('opening', 'opening-slow', 'blast');
     stageEl.classList.toggle('fin', fin);
-    // 閉門（ぶつかった瞬間に画面が揺れ、継ぎ目を火花が走る）
+    // 閉門（ぶつかった瞬間に画面が揺れ、継ぎ目を火花と稲妻が走る）
     stageEl.classList.add('shut');
     Sfx.play('shutterClose');
     await wait(440);
@@ -705,62 +685,51 @@ const Game = (function () {
     FX.lightning(0, 450, 800, 450, 'white', 4); FX.lightning(1600, 450, 800, 450, 'white', 4);
     setStage(to);
     FX.setAmbient(0);
-    await wait(700);
     stageEl.classList.add('ceremony');
-    await wait(450);
-    await stampStage(to, 1500);
-    // ドラムロール（光が扉に吸い込まれていく。最終ステージは雷鳴つきで長い）
-    const roll = fin ? 4.0 : 3.0;
-    Sfx.play('roll', roll);
-    stageEl.classList.add('rolling');
-    FX.streaks(800, 450, fin ? 220 : 140, roll - 0.3, { inward: true, colors });
-    FX.converge(800, 450, fin ? 240 : 150, roll);
-    const tm = [];
-    for (let t = 0.2; t < roll; t += fin ? 0.2 : 0.28) tm.push(setTimeout(() => FX.burst(200 + Math.random() * 1200, 450, 16, { max: 520, life: 0.8, size: 12, colors }), t * 1000));
-    if (fin) [0.6, 1.3, 1.9, 2.4].forEach((t) => tm.push(setTimeout(() => { flash(true); quake(); Sfx.play('thunder'); FX.lightning(rnd(100, 1500), -100, rnd(300, 1300), 450, ACC, 6); FX.lightning(rnd(100, 1500), 1000, rnd(300, 1300), 450, 'white', 5); }, t * 1000)));
-    await wait(roll * 1000);
-    tm.forEach(clearTimeout);
+    await stampStage(to, 300);
+    if (fin) { strobe(3, 80); Sfx.play('thunder'); }
     // 開門
-    hideStamp();
-    stageEl.classList.remove('rolling');
+    await hideStamp();
     stageEl.classList.add('blast');
     flash(false);
     quake();
-    await wait(200);
     stageEl.classList.add('opening-slow');
     stageEl.classList.remove('shut', 'ceremony');
     await arrive(to, false);
-    stageEl.classList.remove('opening-slow', 'blast');
+    setTimeout(() => stageEl.classList.remove('opening-slow', 'blast'), 700);
   }
 
-  /* AA（エースのペア）: 高額当選が確定しているプレイでだけ出る。
-     暗転 → 伏せた2枚が配られる → 1枚ずつめくれて A・A → 閃光。 */
+  /* AA（エースのペア）: 高額当選が確定しているプレイでだけ出る（全体で約4秒）。
+     先に「AA なら高額当選確定」の文字と伏せた2枚 → 1枚ずつめくれる → A・A → 確定 */
   async function pocketAces() {
-    const y = stageH / 2 - 20;
+    const y = stageH / 2 + 60;
     const cover = mk('cover');
-    const cards = [['A', '\u2660'], ['A', '\u2665']].map((c, i) => { const el = pcard(c[0], c[1]); place(el, 800, -420, rnd(-160, 160), 0, 1.25); return { el, x: 800 + (i ? 170 : -170), rz: i ? 7 : -7 }; });
+    const text = mk('aatext', '<small>POCKET ACES</small>A・A なら 高額当選確定！');
+    const cards = [['A', '\u2660'], ['A', '\u2665']].map((c, i) => { const el = pcard(c[0], c[1]); place(el, 800, -420, rnd(-160, 160), 0, 1.15); return { el, x: 800 + (i ? 165 : -165), rz: i ? 7 : -7 }; });
     await frame();
     cover.classList.add('on');
     Sfx.play('freeze');
-    await wait(900);
-    for (const c of cards) { place(c.el, c.x, y, c.rz, 0, 1.25); Sfx.play('deal'); await wait(380); }
-    await wait(700);
-    place(cards[0].el, cards[0].x, y, cards[0].rz, 180, 1.25); Sfx.play('flip'); Sfx.play('bolt', 0.3);
-    setTimeout(() => { flash(true); FX.burst(cards[0].x, 450, 60, { max: 700, colors: ['white', 'gold'] }); }, 220);
-    await wait(1500);                                   // 2枚目は溜める
+    for (const c of cards) { place(c.el, c.x, y, c.rz, 0, 1.15); Sfx.play('deal'); await wait(170); }
+    await wait(850);                                    // 文字を読ませる
+    place(cards[0].el, cards[0].x, y, cards[0].rz, 180, 1.15); Sfx.play('flip'); Sfx.play('bolt', 0.3);
+    setTimeout(() => { flash(true); FX.burst(cards[0].x, 500, 60, { max: 700, colors: ['white', 'gold'] }); }, 220);
     Sfx.play('heartbeat');
-    await wait(700);
-    place(cards[1].el, cards[1].x, y, cards[1].rz, 180, 1.25); Sfx.play('flip'); Sfx.play('bolt', 1);
-    await wait(260);
+    await wait(750);                                    // 2枚目は溜める
+    place(cards[1].el, cards[1].x, y, cards[1].rz, 180, 1.15); Sfx.play('flip'); Sfx.play('bolt', 1);
+    timeWarp(0.25, 1, 0.4);                             // 2枚目はスローでめくれ、指数的に加速
+    await wait(430);
     cards.forEach((c) => c.el.classList.add('hot'));
+    text.className = 'aatext ok';
+    text.innerHTML = '高額当選 確定！！';
     flash(false); quake();
     FX.ring(800, 450, 'white', 1200, 0.9);
-    FX.chips(80, 1.0, ['gold', 'black', 'red']);
+    FX.chips(80, 0.8, ['gold', 'black', 'red']);
     announceSure('BIG WIN CONFIRMED', '高額当選確定！');
-    await wait(2200);
+    await wait(1300);
     cards.forEach((c, i) => place(c.el, c.x + (i ? 900 : -900), -500, i ? 60 : -60, 180, 1));
+    text.style.transition = 'opacity .3s'; text.style.opacity = 0;
     cover.classList.remove('on');
-    await wait(500);
+    await wait(350);
     $('trans').innerHTML = '';
   }
 
@@ -769,20 +738,20 @@ const Game = (function () {
     const label = $('shutterLabel');
     label.querySelector('b').textContent = to;
     label.querySelector('em').textContent = '';
-    label.classList.remove('show');
+    label.classList.remove('show', 'stamp', 'out');
     stageEl.classList.remove('opening');
     stageEl.classList.add('shut');
     Sfx.play('shutterClose');
     await wait(440);
     flash(true);
-    label.classList.add('show');
+    label.classList.add('show', 'stamp');
     FX.clear();
     setStage(to);
     await wait(900);
     Sfx.play('shutterOpen');
     stageEl.classList.add('opening');
     stageEl.classList.remove('shut');
-    label.classList.remove('show');
+    label.classList.remove('show', 'stamp');
     await wait(720);
     stageEl.classList.remove('opening');
   }
@@ -810,14 +779,14 @@ const Game = (function () {
   const CHIP_LV = [['red'], ['blue', 'red'], ['green', 'red', 'blue'], ['black', 'green', 'blue'], ['purple', 'black', 'red'], ['gold', 'black', 'purple'], ['gold', 'black', 'white', 'purple'], ['gold', 'gold', 'black', 'white']];
   const WIN_FX = [
     //  秒数  ラベル        粒子  金粉  花火間隔(秒)  揺れ回数  カウントアップ(秒)
-    { dur: 3.4, label: 'WIN',       burst: 70,  rain: 0,   fire: 0,    shake: 0, count: 0 },
-    { dur: 4.2, label: 'WIN',       burst: 110, rain: 0,   fire: 0,    shake: 0, count: 0 },
-    { dur: 5.4, label: 'NICE WIN',  burst: 150, rain: 70,  fire: 0,    shake: 0, count: 0.9 },
-    { dur: 6.6, label: 'BIG WIN',   burst: 190, rain: 130, fire: 1.0,  shake: 0, count: 1.2 },
-    { dur: 8.2, label: 'BIG WIN',   burst: 230, rain: 200, fire: 0.75, shake: 1, count: 1.6 },
-    { dur: 10.5, label: 'SUPER WIN', burst: 280, rain: 320, fire: 0.55, shake: 1, count: 2.2 },
-    { dur: 13.5, label: 'MEGA WIN',  burst: 340, rain: 520, fire: 0.4,  shake: 2, count: 3.0 },
-    { dur: 17, label: 'JACKPOT',   burst: 420, rain: 800, fire: 0.28, shake: 4, count: 4.0 },
+    { dur: 2.0, label: 'WIN',       burst: 70,  rain: 0,   fire: 0,    shake: 0, count: 0 },
+    { dur: 2.3, label: 'WIN',       burst: 110, rain: 0,   fire: 0,    shake: 0, count: 0 },
+    { dur: 2.6, label: 'NICE WIN',  burst: 150, rain: 70,  fire: 0,    shake: 0, count: 0.5 },
+    { dur: 2.9, label: 'BIG WIN',   burst: 190, rain: 130, fire: 0.7,  shake: 0, count: 0.6 },
+    { dur: 3.2, label: 'BIG WIN',   burst: 230, rain: 200, fire: 0.5,  shake: 1, count: 0.7 },
+    { dur: 3.5, label: 'SUPER WIN', burst: 280, rain: 320, fire: 0.38, shake: 1, count: 0.9 },
+    { dur: 3.7, label: 'MEGA WIN',  burst: 340, rain: 480, fire: 0.3,  shake: 2, count: 1.1 },
+    { dur: 3.8, label: 'JACKPOT',   burst: 420, rain: 640, fire: 0.22, shake: 3, count: 1.3 },
   ];
 
   async function resultFx(res) {
@@ -832,8 +801,7 @@ const Game = (function () {
     }
     const L = Math.max(1, WIN_LEVELS.filter((x) => x <= v).length);
     const fx = WIN_FX[L - 1];
-    await wait(L >= 6 ? 600 : 250); // 一拍置いてから祝福
-    if (L >= 3) await blackout(L >= 6 ? 1.5 : 0.8); // 暗転で溜めてから一気に明ける
+    await wait(200); // 一拍置いてから祝福
     const timers = [];
     const later = (sec, fn) => timers.push(setTimeout(fn, sec * 1000));
     const colors = sureShown ? RAINBOW.concat(['white']) : ['gold', 'white'].concat(STAGE_COL[curStage]); // 金＋そのステージの色（確定中は虹）
@@ -851,6 +819,8 @@ const Game = (function () {
     if (L >= 2) FX.ring(CX, CY, L >= 6 ? 'white' : STAGE_ACC[curStage], 800 + L * 50, 0.75);
     if (L >= 4) later(0.16, () => FX.ring(CX, CY, 'gold', 1000 + L * 40, 0.95));
     if (fx.shake) restart(cabinet, 'shake');
+    bump();
+    if (L >= 3) bulletTime(0.12, 0.45); // 弾けた瞬間に一瞬止まり、指数的に加速
     if (L >= 6) $('dim').classList.add('on');
 
     // 金額カウントアップ → 確定の一撃
@@ -910,12 +880,11 @@ const Game = (function () {
     }
 
     // 連続フラッシュ・途中の暗転 → 再点火・締めの一撃
-    if (L >= 4) for (let t = 1.4; t < fx.dur - 2; t += L >= 6 ? 0.9 : 1.4) later(t, () => flash(true));
-    if (L >= 5) later(fx.dur * 0.5, () => {
-      $('blackout').classList.add('on');
-      setTimeout(() => { $('blackout').classList.remove('on'); flash(false); quake(); Sfx.play('impact'); FX.ring(CX, CY, 'white', 1400, 1.0); FX.burst(CX, CY, 300, { max: 1700, life: 2, size: 26, colors }); strobe(3); }, 450);
+    if (L >= 4) for (let t = 1.0; t < fx.dur - 1.2; t += L >= 6 ? 0.5 : 0.8) later(t, () => flash(true));
+    if (L >= 5) later(fx.dur * 0.5, () => { // 中盤の追撃
+      flash(false); quake(); bump(); Sfx.play('impact'); FX.ring(CX, CY, 'white', 1400, 1.0); FX.burst(CX, CY, 300, { max: 1700, life: 2, size: 26, colors }); strobe(3); bulletTime(0.1, 0.35);
     });
-    if (L >= 3) later(fx.dur - 1.7, () => {
+    if (L >= 3) later(fx.dur - 1.0, () => {
       restart($('bannerValue'), 'slam'); Sfx.play('stamp'); flash(false); quake();
       FX.ring(CX, CY, 'gold', 1300, 1.0); FX.burst(CX, CY, 200 + L * 30, { max: 1600, life: 1.6, colors });
     });
@@ -995,6 +964,9 @@ const Game = (function () {
     FX.init($('fx'));
     Reel.init($('reel'));
     Lever.init(onPull);
+    let edges = '';
+    for (let i = 0; i < 10; i++) edges += '<i style="--i:' + i + '"></i>';
+    $('shutterLabel').innerHTML = '<div class="medal">' + edges + '<div class="face back"></div><div class="face front"><small>STAGE</small><b>2</b><em></em></div></div>';
     lockbar.addEventListener('click', onLockbar);
     initSecret();
     setStage(1);
