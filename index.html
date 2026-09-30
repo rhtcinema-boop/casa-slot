@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-180.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="css/style.css?v=v17">
+<link rel="stylesheet" href="css/style.css?v=v18">
 </head>
 <body>
 <div id="viewport">
@@ -99,7 +99,6 @@
         <div class="banner-value" id="bannerValue"></div>
       </div>
 
-      <canvas id="fx"></canvas>
 
       <div class="lockbar" id="lockbar"></div>
     </div>
@@ -111,13 +110,14 @@
     <div class="seam"></div>
     <div class="shutter-rays"></div>
     <div class="shutter-label" id="shutterLabel"><small>STAGE</small><b>2</b><em></em></div>
+    <div id="fxwrap"><canvas id="fx"></canvas></div>
     <div id="blackout"></div>
     <div class="speedlines"></div>
 
     <div id="ui"></div>
     <div id="toast"></div>
     <!-- 最初のタップで音声を有効化する（ブラウザ/OSの自動再生制限への対応） -->
-    <div id="splash"><div class="splash-in"><div class="logo-emblem"></div><h1 class="brand"><span class="logo-word" role="img" aria-label="casa"></span><b class="gold-text">SLOT</b></h1><p>TAP TO START</p></div><small id="ver">v17</small></div>
+    <div id="splash"><div class="splash-in"><div class="logo-emblem"></div><h1 class="brand"><span class="logo-word" role="img" aria-label="casa"></span><b class="gold-text">SLOT</b></h1><p>TAP TO START</p></div><small id="ver">v18</small></div>
   </div>
   <div id="rotate"><div>端末を横向きにしてご利用ください</div></div>
 </div>
@@ -127,15 +127,15 @@
 window.addEventListener('error', function (e) {
   var d = document.getElementById('fatal') || document.body.appendChild(Object.assign(document.createElement('div'), { id: 'fatal' }));
   d.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:99;padding:10px 14px;border-radius:10px;background:#7a211a;color:#fff;font:14px/1.5 sans-serif;white-space:pre-wrap';
-  d.textContent = 'エラー (v17): ' + (e.message || '') + '\n' + ((e.filename || '').split('/').pop()) + ':' + (e.lineno || '');
+  d.textContent = 'エラー (v18): ' + (e.message || '') + '\n' + ((e.filename || '').split('/').pop()) + ':' + (e.lineno || '');
 });
 </script>
-<script src="js/engine.js?v=v17"></script>
-<script src="js/store.js?v=v17"></script>
-<script src="js/audio.js?v=v17"></script>
-<script src="js/reel.js?v=v17"></script>
-<script src="js/fx.js?v=v17"></script>
-<script src="js/admin.js?v=v17"></script>
-<script src="js/game.js?v=v17"></script>
+<script src="js/engine.js?v=v18"></script>
+<script src="js/store.js?v=v18"></script>
+<script src="js/audio.js?v=v18"></script>
+<script src="js/reel.js?v=v18"></script>
+<script src="js/fx.js?v=v18"></script>
+<script src="js/admin.js?v=v18"></script>
+<script src="js/game.js?v=v18"></script>
 </body>
 </html>
