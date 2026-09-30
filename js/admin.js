@@ -182,7 +182,7 @@ const Admin = (function () {
   const PAGE = 50;
   const TYPES = {
     PLAY: ['play', 'プレイ'], OVERFLOW_PLAY: ['over', '超過プレイ'],
-    SESSION_START: ['ops', '営業開始'], SESSION_END: ['ops', '営業終了'], NEXT_PLAY: ['ops', '次のプレイ'], CREDIT_ADD: ['ops', 'クレジット追加'], CREDIT_SET: ['ops', 'クレジット変更'],
+    SESSION_START: ['ops', '営業開始'], SESSION_END: ['ops', '営業終了'], NEXT_PLAY: ['ops', '次のプレイ'], CREDIT_ADD: ['ops', 'クレジット追加'], CREDIT_SET: ['ops', 'クレジット変更'], TOTAL: ['ops', 'クレジット終了'],
     DRAFT_SAVE: ['cfg', '設定保存'], ADJUST: ['cfg', '残存内訳調整'], CAP_RULES: ['cfg', '上限ルール変更'],
     PIN_SETUP: ['pin', 'PIN初期登録'], PIN_STAFF_REISSUE: ['pin', '営業設定PIN再発行'], PIN_ADMIN_CHANGE: ['pin', '管理者PIN変更'],
     AUTH_LOCKOUT: ['pin', 'PIN連続失敗'], ADMIN_LOGIN: ['pin', '設定画面ログイン'],
@@ -347,6 +347,8 @@ const Admin = (function () {
         return 'プレイ #' + d.playNo + ' の結果確認後、次のプレイへ' + (d.credits !== undefined ? '｜残クレジット ' + d.credits : '');
       case 'CREDIT_ADD':
         return d.amount + ' クレジット追加｜' + d.before + ' → ' + d.after;
+      case 'TOTAL':
+        return 'クレジットを使い切り｜合計当選額 <b>' + fmtN(d.total) + '</b>';
       case 'CREDIT_SET':
         return 'クレジットを変更｜' + d.before + ' → ' + d.after;
       case 'DRAFT_SAVE':
@@ -626,7 +628,7 @@ const Admin = (function () {
         total: c.total, consumedTotal: c.total - Engine.sumCounts(c.remaining), remainTotal: Engine.sumCounts(c.remaining),
         initial: c.initial, consumed: c.consumed, remaining: c.remaining, awarded: c.awarded, overflowCount: c.overflowCount, plays: c.playNo, startedAt: c.startedAt, creditsLeft: st.credits || 0,
       }, role);
-      st.session = null; st.draft = null; st.play = null; st.locked = false; st.credits = 0;
+      st.session = null; st.draft = null; st.play = null; st.locked = false; st.credits = 0; st.wonTotal = 0;
     });
     loadForm();
     UI.toast('営業を終了しました。', 'ok');
