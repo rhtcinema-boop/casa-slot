@@ -6,6 +6,7 @@ const FX = (function () {
   let cv, ctx, raf = 0, last = 0, ambient = 0, ambAcc = 0;
   let parts = [], rings = [], lines = [], bolts = [];
   let timeScale = 1; // 1=等速。スローモーションや早回しに使う
+  let lastRaf = 0;
   /* 軽量化: 1フレームにかかった時間の平均を見て、重い端末では粒子数を自動で減らす。総数にも上限を設ける。 */
   let Q = 0.75, avgMs = 16;
   const MAX_PARTS = 360;
@@ -32,7 +33,7 @@ const FX = (function () {
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
   function kick() {
-    if (!raf) { last = performance.now(); raf = requestAnimationFrame(loop); }
+    if (!raf) { last = lastRaf = performance.now(); raf = requestAnimationFrame(loop); }
   }
 
   /* 中心から放射状に弾ける */
@@ -212,10 +213,14 @@ const FX = (function () {
   }
 
   function loop(now) {
-    const rawMs = Math.min(100, now - last);
+    // 端末の実際のコマ間隔（画面の更新ごと）を測る
+    const rawMs = Math.min(100, now - lastRaf);
+    lastRaf = now;
     avgMs += (rawMs - avgMs) * 0.06;
     Q = avgMs > 26 ? 0.3 : avgMs > 20 ? 0.45 : 0.65;
-    const dt = Math.min(0.05, (now - last) / 1000) * timeScale;
+    // 粒子は30フレームで描く（細かい光の点なので見た目はほぼ変わらず、描く回数が半分になる）
+    if (now - last < 30) { raf = requestAnimationFrame(loop); return; }
+    const dt = Math.min(0.06, (now - last) / 1000) * timeScale;
     last = now;
     if (ambient > 0) {
       ambAcc += ambient * dt;
