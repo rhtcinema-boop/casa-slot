@@ -229,7 +229,24 @@ const Game = (function () {
       lockbar.classList.add('show');
     } else setPlate('error', MSG_EMPTY);
   }
-  function showCredits() { $('credit').textContent = Store.state.credits || 0; }
+  /* 画面に出す合計当選額。演出中のプレイの分は、結果が出るまで含めない */
+  function shownTotal() {
+    const s = Store.state;
+    return (s.wonTotal || 0) - (s.play && s.play.phase === 'drawn' ? s.play.value : 0);
+  }
+  function showCredits() {
+    $('credit').textContent = Store.state.credits || 0;
+    $('total').textContent = fmtN(shownTotal());
+  }
+  /* クレジットを使い切ったとき: 合計当選額を大きく見せる */
+  async function totalFx(total) {
+    showBanner('win lv3 total', 'TOTAL WIN', fmtN(total));
+    flash(true);
+    if (total > 0) { Sfx.play('win', 3); FX.burst(CX, CY, 160, { max: 1200, life: 1.5 }); FX.ring(CX, CY, 'gold', 1000, 0.8); FX.chips(50, 1.0, ['gold', 'black', 'red']); }
+    else Sfx.play('stop');
+    await wait(2300);
+    await hideBanner();
+  }
   /* PIN認証 → 何クレジット入れるか入力 → 加算。成功したら true */
   async function addCredits() {
     const role = await UI.auth('認証が必要です', ['staff', 'admin'], 'クレジット追加', 'PINを入力してください');
@@ -239,8 +256,10 @@ const Game = (function () {
     try {
       Store.transact((s) => {
         const before = s.credits || 0;
+        const prevTotal = s.wonTotal || 0;
+        if (before === 0) s.wonTotal = 0;   // 0 から入れ直したら、合計当選額は新しく数え始める
         s.credits = before + n;
-        Store.log('CREDIT_ADD', { amount: n, before, after: s.credits }, role);
+        Store.log('CREDIT_ADD', { amount: n, before, after: s.credits, prevTotal: before === 0 ? prevTotal : undefined }, role);
       });
     } catch (err) { UI.toast('保存に失敗しました: ' + err.message, 'err'); return false; }
     Sfx.play('ok');
@@ -276,6 +295,7 @@ const Game = (function () {
     const p = Store.state.play;
     lockbar.innerHTML =
       '<div class="res"><small>RESULT</small><b class="' + (p.value === 0 ? 'zero' : '') + '">' + fmtN(p.value) + '</b></div>' +
+      '<div class="res tot"><small>TOTAL</small><b class="' + (shownTotal() === 0 ? 'zero' : '') + '">' + fmtN(shownTotal()) + '</b></div>' +
       '<div class="side"><button class="btn" data-act="next">NEXT GAME</button></div>';
   }
   async function onLockbar(e) {
@@ -322,6 +342,7 @@ const Game = (function () {
         const before = Engine.sumCounts(ses.remaining);
         res = Engine.draw(ses);
         Engine.applyDraw(ses, res);
+        s.wonTotal = (s.wonTotal || 0) + res.value; // 合計当選額も同じ書き込みで加算（表示は結果が出てから）
         s.play = { playNo: ses.playNo, stage: res.stage, value: res.value, overflow: res.overflow, phase: 'drawn', cur: 1, ts: Date.now() };
         s.locked = true;
         Store.log(res.overflow ? 'OVERFLOW_PLAY' : 'PLAY', {
@@ -450,7 +471,10 @@ const Game = (function () {
     }
     await resultFx(play);
     clearSure();
-    try { Store.transact((s) => { if (s.play) s.play.phase = 'shown'; }); } catch (err) { /* 表示済みフラグのみ。失敗しても整合性に影響なし */ }
+    const out = !(Store.state.credits > 0); // このプレイでクレジットを使い切った
+    try { Store.transact((s) => { if (s.play) s.play.phase = 'shown'; if (out) Store.log('TOTAL', { total: s.wonTotal || 0 }); }); } catch (err) { /* 表示済みフラグのみ。失敗しても整合性に影響なし */ }
+    showCredits();
+    if (out) await totalFx(Store.state.wonTotal || 0);
     busy = false;
     if (Store.state.play) showLocked(Store.state.play, true); else refresh();
   }
