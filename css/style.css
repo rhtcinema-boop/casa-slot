@@ -997,3 +997,20 @@ input[type=range].vol { width: 380px; height: 44px; accent-color: #e9c25e; touch
 .shutter-label.rainbow .medal .face::before { box-shadow: 0 0 0 5px #fff, inset 0 0 60px rgba(255, 255, 255, .3); }
 .shutter-label.rainbow b { background: linear-gradient(90deg, #ff3b30, #ff9500, #ffe600, #34e36a, #32d4ff, #3a6bff, #c15cff); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 4px 0 #000); }
 .shutter-label.rainbow small, .shutter-label.rainbow em { text-shadow: 0 3px 0 #000, 0 0 22px #fff; }
+
+/* ==========================================================
+   金額ごとの素材色（リール・当選表示・結果バーで共通）
+   ========================================================== */
+.lv1 { --amt: linear-gradient(180deg, #fff4e6 0%, #f3c99c 18%, #cf8846 38%, #8c4c1e 49%, #3d1d08 51%, #8c4c1e 58%, #dba061 78%, #ffe8cc 100%); --amt-sh: #3d1d08; --amt-glow: rgba(255,210,110,.7); } /* 500: bronze */
+.lv2 { --amt: linear-gradient(180deg, #fffef5 0%, #ffe9a3 18%, #f2c34f 38%, #b07a1a 49%, #5a3706 51%, #a86f18 58%, #f0c65a 78%, #fff3c4 100%); --amt-sh: #5a3706; --amt-glow: rgba(255,210,110,.7); } /* 1000: gold */
+.lv3 { --amt: linear-gradient(180deg, #f2fff6 0%, #b9f7cb 18%, #41d67c 38%, #12803d 49%, #043d1a 51%, #167a3c 58%, #62e291 78%, #e2ffea 100%); --amt-sh: #043d1a; --amt-glow: rgba(70,230,130,.55); } /* 2000: emerald */
+.lv4 { --amt: linear-gradient(180deg, #ffffff 0%, #d2efff 18%, #6cbcf5 38%, #1f66b0 49%, #06224a 51%, #1d5ea6 58%, #79c6f7 78%, #e6f6ff 100%); --amt-sh: #06224a; --amt-glow: rgba(90,180,255,.6); } /* 3000: sapphire */
+.lv5 { --amt: linear-gradient(180deg, #fbf2ff 0%, #e5c6ff 18%, #b86ff7 38%, #6a22b0 49%, #2a0650 51%, #6a24a8 58%, #c78ef9 78%, #f5e8ff 100%); --amt-sh: #2a0650; --amt-glow: rgba(190,110,255,.65); } /* 5000: amethyst */
+.lv6 { --amt: linear-gradient(180deg, #ffffff 0%, #ffdcd0 18%, #ff6a55 38%, #c01d16 49%, #4a0604 51%, #b31b14 58%, #ff8e76 78%, #fff0e8 100%); --amt-sh: #4a0604; --amt-glow: rgba(255,80,50,.75); } /* 10000: ruby */
+.lv7 { --amt: linear-gradient(180deg, #ffffff 0%, #f4fcff 18%, #cfeaf8 38%, #86aec6 49%, #2f4a5c 51%, #8ab4cc 58%, #e2f5ff 78%, #ffffff 100%); --amt-sh: #2f4a5c; --amt-glow: rgba(210,240,255,.9); } /* 50000: diamond */
+.lv8 { --amt: linear-gradient(180deg, rgba(255,255,255,.8) 0%, rgba(255,255,255,0) 36%, rgba(0,0,0,.4) 49%, rgba(0,0,0,.4) 53%, rgba(0,0,0,0) 60%, rgba(255,255,255,.55) 100%), linear-gradient(90deg, #ff3b30, #ff9500, #ffe600, #34e36a, #32d4ff, #3a6bff, #c15cff); --amt-sh: #1c1002; --amt-glow: rgba(255,255,255,.95); } /* 100000: rainbow */
+.banner.win .banner-value, .banner.win.lv6 .banner-value, .banner.win.lv7 .banner-value, .banner.win.lv8 .banner-value {
+  background: var(--amt, var(--gold-grad)); -webkit-background-clip: text; background-clip: text;
+  filter: drop-shadow(0 7px 0 var(--amt-sh, #1c1002)) drop-shadow(0 0 40px var(--amt-glow, rgba(255,210,110,.85))); }
+.plate.result[class*="lv"] .plate-main { background: var(--amt); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 3px 0 var(--amt-sh)) drop-shadow(0 7px 6px rgba(0, 0, 0, .8)); }
+.lockbar .res b.amt { background: var(--amt); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 3px 0 var(--amt-sh)) drop-shadow(0 7px 6px rgba(0, 0, 0, .8)); }
