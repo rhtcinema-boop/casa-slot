@@ -910,3 +910,27 @@ input[type=range].vol { width: 380px; height: 44px; accent-color: #e9c25e; touch
 
 /* ONE MORE CHANCE の文字（長いので小さめ） */
 .banner.next.omc .banner-value { font-size: 128px; letter-spacing: .03em; }
+
+/* 残クレジット表示（右上） */
+.credit-box { position: absolute; left: 1290px; top: 26px; width: 220px; height: 78px; border-radius: 16px; display: flex; align-items: center; justify-content: space-between; padding: 0 22px 0 20px;
+  background: linear-gradient(180deg, #17171b, #0a0a0c); box-shadow: inset 0 0 0 2px var(--accent-dim), inset 0 0 0 5px #000, 0 10px 24px rgba(0, 0, 0, .6); }
+.credit-box small { font: italic 400 22px/1 var(--font-num); letter-spacing: .18em; color: var(--accent); }
+.credit-box b { font: 400 54px/1 var(--font-num); background: var(--text-grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; filter: drop-shadow(0 3px 0 var(--ext3)); }
+.lever { top: 150px; }
+.lever-track { height: 490px; }
+.num-show { font: 400 72px/1 var(--font-num); color: #f1d584; margin: 0 0 22px; min-height: 72px; }
+
+/* 「？」ボタンと遊び方 */
+.help-btn { position: absolute; left: 1212px; top: 36px; width: 58px; height: 58px; border-radius: 50%; border: 0; font: 400 34px/1 var(--font-num); color: var(--accent); touch-action: manipulation;
+  background: linear-gradient(180deg, #1d1d22, #0a0a0c); box-shadow: inset 0 0 0 2px var(--accent-dim), inset 0 0 0 5px #000, 0 8px 18px rgba(0, 0, 0, .6); }
+.help-btn:active { color: #fff; box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 5px #000; }
+.help h5 { margin: 18px 0 8px; font: 700 20px/1.2 var(--font-ui); letter-spacing: .08em; color: #e9c25e; }
+.help h5:first-child { margin-top: 0; }
+.help ol, .help ul { margin: 0; padding-left: 1.4em; }
+.help li { margin: 3px 0; }
+.help b { color: #fff1b8; }
+.hrow { display: flex; align-items: center; gap: 16px; padding: 8px 0; border-top: 1px solid #2a2a31; }
+.hrow em { flex: none; width: 110px; font: italic 400 22px/1 var(--font-num); letter-spacing: .08em; color: #e9c25e; }
+.hv { display: inline-block; margin: 3px 6px 3px 0; padding: 5px 12px; border-radius: 8px; font: 400 22px/1 var(--font-num); letter-spacing: .03em; color: #fff1b8; background: #2a2416; box-shadow: inset 0 0 0 1px #6d4a12; }
+.hv.z { color: #c8d0d8; background: #1e2126; box-shadow: inset 0 0 0 1px #4c545f; }
+.hv.n { color: #d6f2ff; background: #10243f; box-shadow: inset 0 0 0 1px #2f6fa8; }
