@@ -25,6 +25,7 @@ const Store = (function () {
       logSeq: 0,
       pendingLog: [],
       credits: 0,                 // 残クレジット（1プレイで1消費）
+      wonTotal: 0,                // 今のクレジット分の合計当選額（0 から入れ直したときにリセット）
       settings: { volume: 0.9 },
     };
   }
