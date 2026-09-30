@@ -5,6 +5,7 @@ const FX = (function () {
   const CW = 1600, CHT = 1200, OFF = 150;
   let cv, ctx, raf = 0, last = 0, ambient = 0, ambAcc = 0;
   let parts = [], rings = [], lines = [], bolts = [];
+  let timeScale = 1; // 1=等速。スローモーションや早回しに使う
   const sprites = {};
   const COLORS = { gold: [255, 205, 96], white: [255, 246, 220], silver: [214, 226, 240], red: [255, 80, 70], blue: [70, 140, 255], cyan: [120, 225, 255], violet: [185, 120, 255], orange: [255, 150, 50], yellow: [255, 235, 80], green: [90, 240, 120] };
 
@@ -154,7 +155,7 @@ const FX = (function () {
     cols = cols || ['red'];
     for (let i = 0; i < n; i++) {
       const size = rnd(o.size || 18, (o.size || 18) * 1.35);
-      parts.push({ img: chipSprite(pick(cols)), land: !!o.land, t: -rnd(0, dur), life: 4, x: rnd(40, CW - 40), y: -OFF - 40, vx: rnd(-60, 60), vy: rnd(420, 820), g: 900, drag: 0.12, size, rot: rnd(0, 6), vr: rnd(-2.5, 2.5), sp: rnd(7, 13), c: 'gold', tw: 0 });
+      parts.push({ img: chipSprite(pick(cols)), land: !!o.land, zk: !o.land && Math.random() < 0.16 ? rnd(1.0, 1.7) : 0, t: -rnd(0, dur), life: 4, x: rnd(40, CW - 40), y: -OFF - 40, vx: rnd(-60, 60), vy: rnd(420, 820), g: 900, drag: 0.12, size, rot: rnd(0, 6), vr: rnd(-2.5, 2.5), sp: rnd(7, 13), c: 'gold', tw: 0 });
     }
     kick();
   }
@@ -176,6 +177,7 @@ const FX = (function () {
     });
     heights = new Array(COLS).fill(0);
   }
+  function setTimeScale(s) { timeScale = s; }
   function setGround(y, cb) { groundY = y; onLand = cb || null; }
   /* トランプが舞う。o.sweep: 左から右へ流れる / それ以外: (x,y) から飛び散る */
   function cards(n, dur, o) {
@@ -197,7 +199,7 @@ const FX = (function () {
   }
 
   function loop(now) {
-    const dt = Math.min(0.05, (now - last) / 1000);
+    const dt = Math.min(0.05, (now - last) / 1000) * timeScale;
     last = now;
     if (ambient > 0) {
       ambAcc += ambient * dt;
@@ -255,6 +257,11 @@ const FX = (function () {
           p.rot += p.vr * dt;
           const sq = Math.cos(p.t * p.sp);
           if (p.card) ctx.scale(Math.abs(sq) < 0.1 ? 0.1 : sq, 1); else ctx.scale(1, Math.max(0.16, Math.abs(sq)));
+        }
+        if (p.zk) { // カメラに向かって飛んでくる（指数関数的に大きくなる）
+          const zs = Math.min(8, Math.exp(p.zk * p.t));
+          size *= zs;
+          ctx.globalAlpha *= Math.max(0, Math.min(1, (8 - zs) / 2.5));
         }
         const w = p.card ? size * 1.43 : size * 2, h = size * 2;
         ctx.drawImage(p.card && !p.landed && Math.cos(p.t * p.sp) < 0 ? cardBack() : p.img, -w / 2, -h / 2, w, h);
@@ -336,5 +343,5 @@ const FX = (function () {
     ctx = cv.getContext('2d');
   }
 
-  return { init, burst, converge, rain, ring, setAmbient, clear, streaks, lightning, fountain, flakes, chips, chipFountain, releasePile, setGround, cards };
+  return { init, burst, converge, rain, ring, setAmbient, clear, streaks, lightning, fountain, flakes, chips, chipFountain, releasePile, setGround, cards, setTimeScale };
 })();
