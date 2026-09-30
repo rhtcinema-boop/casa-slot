@@ -74,7 +74,7 @@ const Sfx = (function () {
   /* 軽量化: 同時に鳴っている音の数を数え、多すぎるときは小さな音（きらめき・コインなど）から間引く。
      音を一度に大量に作ると、その瞬間に画面が引っかかるため。 */
   const voices = [];
-  const MAX_VOICES = 48;
+  const MAX_VOICES = 32;
   function admit(t, dur, gain) {
     const now = ctx.currentTime;
     while (voices.length && voices[0] < now) voices.shift();
@@ -87,6 +87,15 @@ const Sfx = (function () {
     voices.splice(i, 0, end);
     return true;
   }
+  /* 軽量化: 少し先に鳴る音は、その直前になってから部品を作る。
+     1つの効果音が数十〜百個の部品をまとめて作ると、その瞬間に画面が引っかかるため、作る時刻を分散させる。
+     鳴る時刻は呼び出し時点で確定させるので、タイミングはずれない。 */
+  function defer(fn, o) {
+    if (o._t !== undefined || !(o.at > 0.25)) return false;
+    const t = ctx.currentTime + o.at;
+    setTimeout(() => { if (ctx.currentTime < t + 0.05) fn(Object.assign({}, o, { _t: Math.max(t, ctx.currentTime) })); }, (o.at - 0.18) * 1000);
+    return true;
+  }
   function envelope(g, t, a, d, peak) {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a);
@@ -94,7 +103,8 @@ const Sfx = (function () {
   }
   /* o: {type,f,f2,at,a,d,g,lp,lp2,vib,trem,pan,rev,dly} */
   function tone(o) {
-    const t = ctx.currentTime + (o.at || 0), a = o.a || 0.004, d = o.d || 0.1;
+    if (defer(tone, o)) return;
+    const t = o._t !== undefined ? o._t : ctx.currentTime + (o.at || 0), a = o.a || 0.004, d = o.d || 0.1;
     if (!admit(t, a + d, o.g || 0.2)) return;
     const osc = ctx.createOscillator();
     osc.type = o.type || 'sine';
@@ -129,7 +139,8 @@ const Sfx = (function () {
   }
   /* o: {ft,f,f2,q,at,a,d,g,pan,rev,dly} */
   function noise(o) {
-    const t = ctx.currentTime + (o.at || 0), a = o.a || 0.002, d = o.d || 0.05;
+    if (defer(noise, o)) return;
+    const t = o._t !== undefined ? o._t : ctx.currentTime + (o.at || 0), a = o.a || 0.002, d = o.d || 0.05;
     if (!admit(t, a + d, o.g || 0.2)) return;
     const src = ctx.createBufferSource();
     src.buffer = noiseBuf; src.loop = true;
@@ -146,7 +157,8 @@ const Sfx = (function () {
   }
   /* FM音源。o: {f,f2,ratio,idx,at,a,d,g,pan,rev,dly} — ベル・チャイム・ゴング・レーザー */
   function fm(o) {
-    const t = ctx.currentTime + (o.at || 0), a = o.a || 0.003, d = o.d || 0.4;
+    if (defer(fm, o)) return;
+    const t = o._t !== undefined ? o._t : ctx.currentTime + (o.at || 0), a = o.a || 0.003, d = o.d || 0.4;
     if (!admit(t, a + d, o.g || 0.2)) return;
     const ratio = Math.min(o.ratio || 3.5, 15000 / Math.max(o.f, o.f2 || 0)); // 変調波が可聴域を超えないように
     const car = ctx.createOscillator(), mod = ctx.createOscillator(), mg = ctx.createGain(), g = ctx.createGain();
