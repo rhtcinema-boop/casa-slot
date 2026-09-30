@@ -573,7 +573,7 @@ input[type=range].vol { width: 380px; height: 44px; accent-color: #e9c25e; touch
    ステージ突入時のカメラワーク（画面ごと寄る・弾ける・引く・揺れる）
    ========================================================== */
 #content { transform-origin: 770px 420px; }
-#content.zoom-charge { animation: zoom-charge 1.9s cubic-bezier(.5, 0, .9, .4) forwards; }
+#content.zoom-charge { animation: zoom-charge 2.8s cubic-bezier(.5, 0, .9, .4) forwards; }
 @keyframes zoom-charge { to { transform: scale(1.2) rotate(-.8deg); } }
 #content.zoom-punch { animation: zoom-punch .75s var(--ease-back) both; }
 @keyframes zoom-punch { 0% { transform: scale(1.2) rotate(-.8deg); } 28% { transform: scale(.9) rotate(.7deg); } 100% { transform: scale(1) rotate(0); } }
@@ -633,3 +633,120 @@ input[type=range].vol { width: 380px; height: 44px; accent-color: #e9c25e; touch
 #crest.holding .logo-emblem { transform: scale(.9); }
 .splash-in .logo-emblem { filter: drop-shadow(0 2px 0 #6d4a12) drop-shadow(0 5px 0 #120b02) drop-shadow(0 14px 18px rgba(0, 0, 0, .8)); }
 #stage.sure .logo-word::after, #stage.sure .logo-emblem::after { background: linear-gradient(90deg, #ff3b30, #ff9500, #ffe600, #34e36a, #32d4ff, #3a6bff, #c15cff, #ff3b30); background-size: 200% 100%; animation: rainbow-slide 1.2s linear infinite; }
+
+
+/* ==========================================================
+   ポーカーテーブル: フェルト地＋スート柄＋テーブルのライン＋置かれたチップとカード
+   フェルトの色はステージごとに変わる（1=エメラルド / 2=サファイア / 3=クリムゾン）
+   ========================================================== */
+.bg1 { background: radial-gradient(ellipse 85% 80% at 48% 44%, #23744e 0%, #124a32 42%, #061f15 78%, #020b07 100%); }
+.bg2 { background: radial-gradient(ellipse 85% 80% at 48% 44%, #2459ad 0%, #102a63 42%, #050f2a 78%, #02050d 100%); }
+.bg3 { background: radial-gradient(ellipse 85% 80% at 48% 44%, #97202a 0%, #4a0d14 42%, #170406 78%, #050102 100%); }
+.lattice { opacity: 1; background: url("data:image/svg+xml;charset=utf8,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'200'%20height%3D'200'%3E%3Cg%20font-family%3D'Georgia%2Cserif'%20font-size%3D'46'%20fill%3D'white'%20fill-opacity%3D'.055'%20text-anchor%3D'middle'%3E%3Ctext%20x%3D'50'%20y%3D'66'%3E%E2%99%A0%3C%2Ftext%3E%3Ctext%20x%3D'150'%20y%3D'66'%3E%E2%99%A5%3C%2Ftext%3E%3Ctext%20x%3D'50'%20y%3D'166'%3E%E2%99%A6%3C%2Ftext%3E%3Ctext%20x%3D'150'%20y%3D'166'%3E%E2%99%A3%3C%2Ftext%3E%3C%2Fg%3E%3C%2Fsvg%3E"), url("data:image/svg+xml;charset=utf8,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'220'%20height%3D'220'%3E%3Cfilter%20id%3D'n'%3E%3CfeTurbulence%20type%3D'fractalNoise'%20baseFrequency%3D'.9'%20numOctaves%3D'2'%20stitchTiles%3D'stitch'%2F%3E%3CfeColorMatrix%20values%3D'0%200%200%200%201%20%200%200%200%200%201%20%200%200%200%200%201%20%200%200%200%20.22%200'%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D'220'%20height%3D'220'%20filter%3D'url(%23n)'%2F%3E%3C%2Fsvg%3E"); }
+.tline { position: absolute; left: -12%; width: 124%; top: 58%; height: 120%; border-radius: 50%; pointer-events: none;
+  border: 3px solid rgba(var(--acc), .42); box-shadow: 0 0 0 14px rgba(0, 0, 0, .0), 0 0 0 16px rgba(var(--acc), .16), inset 0 0 120px rgba(0, 0, 0, .35); }
+.props { position: absolute; left: 36px; top: 712px; width: 300px; height: 176px; pointer-events: none; }
+.stack { position: absolute; bottom: 0; width: 78px; border-radius: 39px / 12px; --c: var(--accent-dim); --s: #fff;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .55), transparent 30%, rgba(255, 255, 255, .22) 48%, transparent 66%, rgba(0, 0, 0, .6)),
+    repeating-linear-gradient(90deg, transparent 0 12px, var(--s) 12px 21px, transparent 21px 39px),
+    repeating-linear-gradient(180deg, var(--c) 0 10px, rgba(0, 0, 0, .55) 10px 12px);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, .7); }
+.stack::before { content: ""; position: absolute; left: 0; top: -1px; width: 78px; height: 24px; border-radius: 50%;
+  background: radial-gradient(ellipse, var(--c) 0 38%, var(--s) 40% 47%, var(--c) 49% 100%); box-shadow: inset 0 2px 3px rgba(255, 255, 255, .35), inset 0 -2px 3px rgba(0, 0, 0, .4); }
+.stack.acc { --c: var(--accent-dim); --s: var(--accent); }
+.mini-card { position: absolute; width: 84px; height: 118px; border-radius: 8px; background: linear-gradient(160deg, #ffffff, #e9e6dc); box-shadow: 0 0 0 1px #777, 0 8px 16px rgba(0, 0, 0, .65); color: #15151a; }
+.mini-card b { position: absolute; left: 8px; top: 4px; font: 700 24px Georgia, serif; }
+.mini-card i { position: absolute; left: 0; right: 0; top: 34px; text-align: center; font: normal 54px Georgia, serif; }
+
+/* ==========================================================
+   彫金クロームの文字
+   極太書体・2段の映り込み（上=空 / 中央の暗い水平線 / 下=照り返し）・白い縁・下方向の厚み
+   ========================================================== */
+:root {
+  --font-num: Impact, "Haettenschweiler", "Arial Narrow Bold", "Arial Black", sans-serif;
+  --gold-grad: linear-gradient(180deg, #fffef5 0%, #ffe9a3 18%, #f2c34f 38%, #b07a1a 49%, #5a3706 51%, #a86f18 58%, #f0c65a 78%, #fff3c4 100%);
+  --silver-grad: linear-gradient(180deg, #ffffff 0%, #e6ebf0 18%, #aeb8c4 38%, #5d6874 49%, #1c2128 51%, #56606c 58%, #b6c0cb 78%, #f4f7fa 100%);
+}
+#stage { --text-grad: var(--gold-grad); --ext1: #a87a1e; --ext2: #5a3706; --ext3: #1c1002; }
+#stage[data-stage="2"] { --ext1: #2f7fd0; --ext2: #0c3470; --ext3: #030d1c;
+  --text-grad: linear-gradient(180deg, #ffffff 0%, #d2efff 18%, #6cbcf5 38%, #1f66b0 49%, #06224a 51%, #1d5ea6 58%, #79c6f7 78%, #e6f6ff 100%); }
+#stage[data-stage="3"] { --ext1: #d0402c; --ext2: #6a0f0a; --ext3: #1a0302;
+  --text-grad: linear-gradient(180deg, #ffffff 0%, #ffdcd0 18%, #ff7a62 38%, #b3261a 49%, #3d0604 51%, #a8221a 58%, #ff8e76 78%, #ffe9e0 100%); }
+.plate-main, .rung b, .banner-value, .shutter-label b, .brand b, .lockbar .res b, .lever-cap, .handname, .gcard .f b {
+  font-family: var(--font-num); font-weight: 400; -webkit-text-stroke: 1.5px rgba(255, 255, 255, .6);
+  filter: drop-shadow(0 1px 0 var(--ext1)) drop-shadow(0 2px 0 var(--ext1)) drop-shadow(0 4px 0 var(--ext2)) drop-shadow(0 6px 0 var(--ext3)) drop-shadow(0 12px 10px rgba(0, 0, 0, .8));
+}
+.row .lbl, .stat b, input.num, .pin-keys button { font-weight: 400; letter-spacing: .03em; }
+.plate-main { font-size: 52px; font-style: italic; letter-spacing: .1em; padding-left: .1em; }
+.plate.result .plate-main { font-size: 78px; font-style: normal; letter-spacing: .04em; -webkit-text-stroke-width: 2px; }
+.plate.error .plate-main { -webkit-text-stroke: 0; font-style: normal; }
+.rung b { font-size: 80px; }
+.rung:not(.on) b { filter: drop-shadow(0 3px 0 #000); -webkit-text-stroke: 0; }
+.lockbar .res b { font-size: 76px; letter-spacing: .04em; }
+.brand b { font-style: italic; font-size: .74em; letter-spacing: .16em; padding-top: .12em; }
+.lever-cap { font-size: 40px; font-style: italic; letter-spacing: .2em; padding-left: .2em; background: var(--text-grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; text-shadow: none; }
+.banner-value { font-style: italic; letter-spacing: .03em; -webkit-text-stroke: 3px rgba(255, 255, 255, .75);
+  filter: drop-shadow(0 2px 0 #a87a1e) drop-shadow(0 5px 0 #5a3706) drop-shadow(0 9px 0 #1c1002) drop-shadow(0 0 50px rgba(255, 210, 110, .85)); }
+.banner.lv6 .banner-value, .banner.lv7 .banner-value, .banner.lv8 .banner-value { filter: drop-shadow(0 3px 0 #c8922e) drop-shadow(0 7px 0 #6a4206) drop-shadow(0 12px 0 #1c1002) drop-shadow(0 0 70px rgba(255, 215, 120, 1)); }
+.banner.next .banner-value { font-family: var(--font-num); font-size: 178px; letter-spacing: .05em;
+  filter: drop-shadow(0 2px 0 var(--ext1)) drop-shadow(0 5px 0 var(--ext2)) drop-shadow(0 9px 0 var(--ext3)) drop-shadow(0 0 50px rgba(var(--acc), .95)); }
+.banner-label { font-family: var(--font-num); font-style: italic; font-weight: 400; letter-spacing: .3em; padding-left: .3em; }
+.shutter-label b { font-size: 230px; -webkit-text-stroke-width: 3px; }
+.shutter-label small, .shutter-label em { font-family: var(--font-num); font-weight: 400; font-style: italic; }
+
+/* ==========================================================
+   ステージ移行パターン（ガラスが割れる / カードがそろう / 巨大カード / チップの雪崩）
+   ========================================================== */
+#trans { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; perspective: 1800px; }
+.cover { position: absolute; inset: 0; opacity: 0; transition: opacity .5s ease; background: radial-gradient(ellipse at 50% 46%, rgba(12, 12, 16, .9), rgba(0, 0, 0, .98)); }
+.cover.on { opacity: 1; }
+.shard { position: absolute; opacity: 0; will-change: transform, opacity; }
+.shard.lit { opacity: 1; }
+.cracks { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.cracks path { fill: none; stroke: #fff; stroke-width: 2.5; stroke-linejoin: round; opacity: 0; filter: drop-shadow(0 0 6px rgba(255, 255, 255, .9)); }
+.cracks path.on { opacity: 1; }
+.shutter-label { z-index: 2; }
+.shutter-label.stamp { opacity: 1; animation: stamp-in .36s cubic-bezier(.7, 0, 1, .6) both; }
+#stage.rolling .shutter-label.stamp { animation: label-throb .22s ease-in-out infinite; }
+.pcard { position: absolute; left: -110px; top: -154px; width: 220px; height: 308px; transform-style: preserve-3d; -webkit-transform-style: preserve-3d; transition: transform .5s cubic-bezier(.25, 1.2, .4, 1); will-change: transform; }
+.pcard .f, .pcard .b { position: absolute; inset: 0; border-radius: 18px; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: 0 0 0 2px #000, 0 20px 40px rgba(0, 0, 0, .7); }
+.pcard .b { background: repeating-linear-gradient(45deg, rgba(233, 194, 94, .35) 0 2px, transparent 2px 16px), repeating-linear-gradient(-45deg, rgba(233, 194, 94, .35) 0 2px, transparent 2px 16px), linear-gradient(160deg, #26262c, #0b0b0d); border: 8px solid #e9c25e; }
+.pcard .b::after { content: ""; position: absolute; inset: 22%; background: #e9c25e; -webkit-mask: url(../logo-emblem.png) center / contain no-repeat; mask: url(../logo-emblem.png) center / contain no-repeat; }
+.pcard .f { transform: rotateY(180deg); background: linear-gradient(160deg, #ffffff, #ebe8de); color: #15151a; }
+.pcard.red .f { color: #d0201a; }
+.pcard .cr { position: absolute; left: 14px; top: 8px; font: 700 44px/1 Georgia, serif; text-align: center; }
+.pcard .cr i { display: block; font-style: normal; font-size: 36px; margin-top: 2px; }
+.pcard .cr.br { left: auto; top: auto; right: 14px; bottom: 8px; transform: rotate(180deg); }
+.pcard .big { position: absolute; left: 0; right: 0; top: 50%; margin-top: -70px; text-align: center; font: 130px/140px Georgia, serif; }
+.pcard.hot .f { box-shadow: 0 0 0 4px #fff, 0 0 50px 10px rgba(var(--acc), .9), 0 20px 40px rgba(0, 0, 0, .7); }
+.handname { position: absolute; left: 0; right: 0; top: 50%; margin-top: 190px; text-align: center; font-size: 110px; line-height: 1; font-style: italic; letter-spacing: .06em; opacity: 0;
+  background: var(--gold-grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.handname.on { opacity: 1; animation: stamp-hand .4s cubic-bezier(.7, 0, 1, .6) both; }
+@keyframes stamp-hand { 0% { opacity: 0; transform: scale(3); } 100% { opacity: 1; transform: scale(1); } }
+.gcard { position: absolute; left: -290px; top: -406px; width: 580px; height: 812px; transform-style: preserve-3d; -webkit-transform-style: preserve-3d; will-change: transform, opacity; }
+.gcard .f, .gcard .b { position: absolute; inset: 0; border-radius: 44px; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: 0 0 0 4px #000, 0 0 120px rgba(var(--acc), .6), 0 40px 90px rgba(0, 0, 0, .8); }
+.gcard .b { background: repeating-linear-gradient(45deg, rgba(233, 194, 94, .35) 0 3px, transparent 3px 34px), repeating-linear-gradient(-45deg, rgba(233, 194, 94, .35) 0 3px, transparent 3px 34px), linear-gradient(160deg, #26262c, #0b0b0d); border: 18px solid #e9c25e; }
+.gcard .b::after { content: ""; position: absolute; inset: 20%; background: linear-gradient(180deg, #fff8d6, #e9c25e 50%, #b8862b); -webkit-mask: url(../logo-emblem.png) center / contain no-repeat; mask: url(../logo-emblem.png) center / contain no-repeat; }
+.gcard .f { transform: rotateY(180deg); background: linear-gradient(160deg, #1d1d22, #08080a); border: 14px solid var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.gcard .f small { font: italic 400 64px/1 var(--font-num); letter-spacing: .4em; padding-left: .4em; color: var(--accent); }
+.gcard .f b { font-size: 400px; line-height: 1; background: var(--text-grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; -webkit-text-stroke-width: 4px; }
+.gcard .f em { font: italic 400 46px/1 var(--font-num); letter-spacing: .3em; padding-left: .3em; color: #fff; text-shadow: 0 0 24px rgba(var(--acc), 1); }
+.gcard .f i { position: absolute; font: normal 90px/1 Georgia, serif; color: var(--accent); left: 34px; top: 26px; }
+.gcard .f i + i { left: auto; top: auto; right: 34px; bottom: 26px; transform: rotate(180deg); }
+
+
+/* ==========================================================
+   筐体の装飾: 流れる LED の柱・四隅の宝石・常時ゆれるライト・暗転
+   ========================================================== */
+#stage[data-stage="1"] { --beams: .3; --sheen: 1; --rim: .45; --title-glow: .45; --rays: .35; }
+.led { position: absolute; top: 34px; bottom: 34px; width: 16px; border-radius: 8px; box-shadow: 0 0 0 2px #000, 0 0 0 4px var(--accent-dim), 0 0 22px rgba(var(--acc), .85);
+  background: repeating-linear-gradient(180deg, rgba(var(--acc), 1) 0 16px, #fff 16px 22px, rgba(var(--acc), .12) 22px 60px); background-size: 100% 120px; animation: led 0.8s linear infinite; }
+.led.l { left: -34px; } .led.r { right: -34px; animation-direction: reverse; }
+@keyframes led { to { background-position: 0 -120px; } }
+.cabinet.party .led { animation-duration: .25s; }
+.gem { position: absolute; width: 30px; height: 30px; transform: rotate(45deg); border-radius: 5px; z-index: 1;
+  background: linear-gradient(135deg, #fff 0%, rgba(var(--acc), 1) 38%, var(--accent-dim) 62%, #fff 100%); box-shadow: 0 0 0 2px #000, 0 0 18px rgba(var(--acc), .95), inset 0 0 6px rgba(255, 255, 255, .8); animation: gem 2.2s ease-in-out infinite; }
+.gem.tl { left: 10px; top: 10px; } .gem.tr { right: 10px; top: 10px; animation-delay: .5s; } .gem.bl { left: 10px; bottom: 10px; animation-delay: 1s; } .gem.br { right: 10px; bottom: 10px; animation-delay: 1.5s; }
+@keyframes gem { 0%, 100% { opacity: .75; transform: rotate(45deg) scale(1); } 50% { opacity: 1; transform: rotate(45deg) scale(1.22); } }
+#blackout { transition: opacity .18s; }
+#blackout.on { opacity: .985; }
