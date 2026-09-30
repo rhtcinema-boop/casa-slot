@@ -843,3 +843,70 @@ input[type=range].vol { width: 380px; height: 44px; accent-color: #e9c25e; touch
 .aatext.ok { background: linear-gradient(90deg, #ff3b30, #ff9500, #ffe600, #34e36a, #32d4ff, #3a6bff, #c15cff, #ff3b30, #ff9500, #ffe600, #34e36a, #32d4ff, #3a6bff, #c15cff, #ff3b30); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text;
   animation: aa-ok .35s var(--expo-in) both, rainbow-slide 1.2s linear infinite; font-size: 110px; }
 @keyframes aa-ok { from { transform: perspective(900px) translateZ(900px); } to { transform: perspective(900px) translateZ(0); } }
+
+
+/* ==========================================================
+   軽量化（カクつき防止）
+   毎フレーム描き直しが発生する処理をやめ、GPU だけで動く transform / opacity に置き換える
+   ========================================================== */
+/* ロゴ: 光沢の流れるアニメ（毎フレーム再描画）をやめて静止した金属に */
+.logo-word::after, .logo-emblem::after { animation: none; background: var(--text-grad); }
+.logo-word, .logo-emblem { filter: drop-shadow(0 3px 0 #120b02) drop-shadow(0 8px 8px rgba(0, 0, 0, .7)); }
+/* LED の柱: 背景位置のアニメをやめ、中の帯を transform で流す */
+.led { background: #08080a; overflow: hidden; animation: none; }
+.led::before { content: ""; position: absolute; left: 0; right: 0; top: -120px; bottom: -120px; will-change: transform; animation: led-run .8s linear infinite;
+  background: repeating-linear-gradient(180deg, rgba(var(--acc), 1) 0 16px, #fff 16px 22px, rgba(var(--acc), .12) 22px 60px); }
+.led.r::before { animation-direction: reverse; }
+.cabinet.party .led::before { animation-duration: .25s; }
+@keyframes led-run { to { transform: translateY(120px); } }
+/* レバーの発光: 影のアニメをやめて常時点灯 */
+.lever.ready .knob-ball { animation: none; box-shadow: inset 0 -12px 22px rgba(0, 0, 0, .6), inset 0 3px 6px rgba(255, 255, 255, .35), 0 14px 24px rgba(0, 0, 0, .7), 0 0 38px rgba(var(--acc), .6); }
+/* 虹色中: 色相を回すフィルタのアニメをやめる（虹の光・電球・文字はそのまま） */
+#stage.sure .frame, #stage.sure .knob-ball, #stage.sure .pointer, #stage.sure .rung.on, #stage.sure .lever-track { animation: none; }
+#stage.sure .pointer { animation: ptr .3s ease-in-out infinite; }
+.plate.sure { animation: none; }
+/* 回転する光条: 大きすぎる面を小さくする */
+.rays, .rays2 { width: 2000px; height: 2000px; margin: -1000px 0 0 -1000px; }
+#stage[data-stage="2"] .rays2 { opacity: 0; }
+.banner-rays { width: 1200px; height: 1200px; margin: -600px 0 0 -600px; }
+.banner.lv8.show .banner-rays { width: 1500px; height: 1500px; margin: -750px 0 0 -750px; }
+.shutter-rays { width: 1300px; height: 1300px; margin: -650px 0 0 -650px; }
+/* 文字の影: 重ねる枚数を減らす（厚みは残す） */
+.plate-main, .rung b, .shutter-label b, .brand b, .lockbar .res b, .lever-cap { filter: drop-shadow(0 3px 0 var(--ext2)) drop-shadow(0 7px 6px rgba(0, 0, 0, .8)); }
+.rung:not(.on) b { filter: none; }
+.banner-value, .banner.lv6 .banner-value, .banner.lv7 .banner-value, .banner.lv8 .banner-value { filter: drop-shadow(0 7px 0 #1c1002) drop-shadow(0 0 36px rgba(255, 210, 110, .85)); }
+.banner.next .banner-value { filter: drop-shadow(0 7px 0 var(--ext3)) drop-shadow(0 0 36px rgba(var(--acc), .9)); }
+#stage.sure .banner .banner-value { filter: drop-shadow(0 7px 0 rgba(0, 0, 0, .85)); }
+.plate.error .plate-main { filter: none; }
+/* 認証コード画面: 押してもボタンは動かさず、色だけ変える */
+.pin-keys button { transition: background .08s, color .08s; }
+.pin-keys button:active { transform: none; box-shadow: 0 0 0 2px #000, 0 5px 0 #08080a, inset 0 0 0 2px #e9c25e; background: linear-gradient(180deg, #4a4130, #2a2416); color: #fff1b8; }
+.pin-keys button.go:active { transform: none; box-shadow: 0 0 0 2px #2a1a03, 0 5px 0 #6d4a12; background: linear-gradient(180deg, #ffffff, #e9c25e); }
+.pinpad .cancel:active { color: #fff1b8; }
+
+/* カメラ手前へ飛ばす距離を抑える（大きく拡大すると、その大きさで描き直しが走って引っかかる） */
+@keyframes reveal { from { transform: perspective(1400px) translate3d(0, 0, 400px) rotateX(-16deg) rotateZ(4deg); } to { transform: perspective(1400px) translate3d(0, 0, 0) rotateX(0) rotateZ(0); } }
+@keyframes zoom-charge { to { transform: perspective(1400px) translate3d(0, 0, 260px) rotateX(7deg) rotateY(-6deg) rotateZ(-1.4deg); } }
+@keyframes medal-out { to { transform: translateZ(520px) rotateY(-200deg); opacity: 0; } }
+@keyframes medal-in {
+  0% { transform: translateZ(-2800px) rotateY(1260deg) rotateX(48deg); animation-timing-function: cubic-bezier(.16, 1, .3, 1); }
+  72% { transform: translateZ(170px) rotateY(0deg) rotateX(0deg); animation-timing-function: cubic-bezier(.7, 0, .84, 0); }
+  100% { transform: translateZ(0) rotateY(0deg) rotateX(0deg); }
+}
+@keyframes banner-out { from { opacity: 1; } to { opacity: 0; transform: translate(-50%, -50%) translateZ(380px); } }
+@keyframes slam { 0% { transform: translate(-50%, -50%) translateZ(340px); } 100% { transform: translate(-50%, -50%) translateZ(0); } }
+@keyframes punch { 0% { opacity: 0; transform: translate(-50%, -50%) translateZ(-2400px) rotateX(78deg); } 50% { opacity: 1; transform: translate(-50%, -50%) translateZ(110px) rotateX(-12deg); } 100% { opacity: 1; transform: translate(-50%, -50%) translateZ(0) rotateX(0); } }
+@keyframes letter-in { 0% { opacity: 0; transform: perspective(800px) translate3d(0, -140px, 300px) rotateY(110deg) rotateZ(-24deg); } 45% { opacity: 1; } 100% { opacity: 1; transform: perspective(800px) translate3d(0, 0, 0) rotateY(0) rotateZ(0); } }
+/* ヒビ: 光彩フィルタをやめ、線の太さだけで見せる */
+.cracks path { filter: none; stroke-width: 3.5; }
+/* 立体チップの側面: 円錐グラデーションをやめて単色の層に（6層） */
+.medal > i { background: var(--accent-dim); transform: translateZ(calc((var(--i) - 2.5) * 11px)); box-shadow: inset 0 0 0 10px var(--accent); }
+.medal > i:nth-child(even) { background: #fff; box-shadow: inset 0 0 0 10px var(--accent-dim); }
+/* リールの筐体は固定（立体的には動かさない） */
+.cab3d, .cab3d.bump { animation: none; transform: none; transform-style: flat; -webkit-transform-style: flat; will-change: auto; }
+.cab3d .rim, .cab3d .frame, .cab3d .window, .cab3d .led, .cab3d .bulbs, .cab3d .sheen, .cab3d .pointer { transform: none; }
+@keyframes ptr { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.28); } }
+@keyframes gem { 0%, 100% { opacity: .75; transform: rotate(45deg) scale(1); } 50% { opacity: 1; transform: rotate(45deg) scale(1.22); } }
+
+/* ONE MORE CHANCE の文字（長いので小さめ） */
+.banner.next.omc .banner-value { font-size: 128px; letter-spacing: .03em; }
