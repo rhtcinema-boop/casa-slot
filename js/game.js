@@ -630,7 +630,18 @@ const Game = (function () {
     FX.setAmbient(0);
     stageEl.classList.add('ceremony');
     await stampStage(to, 300);
-    if (fin) { strobe(3, 80); Sfx.play('thunder'); }
+    // 溜め（約2秒）: ドラムロール。継ぎ目の光が速く脈打ち、光が扉へ吸い込まれていく
+    const roll = 1.9;
+    Sfx.play('roll', roll);
+    stageEl.classList.add('rolling');
+    FX.streaks(800, 450, fin ? 140 : 100, roll - 0.3, { inward: true, colors });
+    FX.converge(800, 450, fin ? 150 : 110, roll);
+    const tm = [];
+    for (let t = 0.25; t < roll; t += 0.3) tm.push(setTimeout(() => FX.burst(200 + Math.random() * 1200, 450, 14, { max: 500, life: 0.8, size: 12, colors }), t * 1000));
+    if (fin) [0.7, 1.4].forEach((t) => tm.push(setTimeout(() => { flash(true); Sfx.play('thunder'); FX.lightning(rnd(100, 1500), -100, rnd(300, 1300), 450, STAGE_ACC[to], 6); }, t * 1000)));
+    await wait(roll * 1000);
+    tm.forEach(clearTimeout);
+    stageEl.classList.remove('rolling');
     // 開門
     await hideStamp();
     stageEl.classList.add('blast');
