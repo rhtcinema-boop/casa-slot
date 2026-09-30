@@ -1043,3 +1043,62 @@ input[type=range].vol { width: 380px; height: 44px; accent-color: #e9c25e; touch
 .shutter-rays { width: 1000px; height: 1000px; margin: -500px 0 0 -500px; }
 /* 扉が閉まっている間は、裏で動いている装飾アニメを止める */
 #stage.ceremony .rays, #stage.ceremony .rays2, #stage.ceremony .beam, #stage.ceremony .bulbs i, #stage.ceremony .led::before, #stage.ceremony .rim::before, #stage.ceremony .sheen::before { animation-play-state: paused; }
+
+/* ==========================================================
+   描画の軽量化（iPad 向け）
+   ・マスク／切り抜き／ぼかし影／3D／親ごとのズームと揺れをやめ、移動・拡大縮小・透明度だけで動かす
+   ========================================================== */
+/* 光条とサーチライト: 起動時に作った画像を回すだけ */
+.rays, .rays2, .banner-rays, .shutter-rays,
+#stage[data-stage="3"] .rays, #stage.sure .rays, #stage.sure .rays2, .banner.next .banner-rays, #stage.fin .shutter-rays {
+  background: var(--rays-img) center / 100% 100% no-repeat !important; -webkit-mask-image: none !important; mask-image: none !important; }
+.rays { opacity: calc(var(--rays) * .7); }
+.rays2 { display: none; }
+.beam, .beam.l2, .beam.r2 { background: var(--beam-img) center / 100% 100% no-repeat !important; -webkit-clip-path: none !important; clip-path: none !important; }
+/* 画面本体のズーム・画面全体の揺れは廃止 */
+#content.zoom-charge, #content.zoom-punch, #content.reveal { animation: none; }
+#viewport.quake { animation: none; }
+/* 演出中・診断時は背景の常時アニメを非表示（描画自体が止まる） */
+#stage.fxmode .rays, #stage.fxmode .beams, #stage.fxmode .rim, #stage.fxmode .led, #stage.fxmode .sheen, #stage.fxmode .tline,
+#stage.no-bg .rays, #stage.no-bg .beams, #stage.no-bg .rim, #stage.no-bg .led, #stage.no-bg .sheen { visibility: hidden; }
+#stage.no-bg .bulbs i, #stage.no-bg .gem, #stage.no-bg .pointer, #stage.no-bg .rail i, #stage.no-bg .lever-arrows i { animation: none !important; }
+/* フィルタの削除（ぼかし影・色調整） */
+.frame, #crest::before { filter: none; }
+.pointer { filter: none; }
+.plate-main, .rung b, .shutter-label b, .brand b, .lockbar .res b, .lever-cap, .credit-box b, .lockbar .res b.amt, .plate.result[class*="lv"] .plate-main { filter: drop-shadow(0 3px 0 rgba(0, 0, 0, .85)); }
+.logo-word, .logo-emblem, .splash-in .logo-emblem { filter: drop-shadow(0 3px 0 rgba(0, 0, 0, .8)); }
+.gold-text { filter: drop-shadow(0 2px 0 #3a2606); }
+.aatext { filter: none; }
+/* 当選金額: キャンバスで描いた1枚の画像を、拡大縮小と透明度だけで動かす */
+#bannerCv { position: absolute; left: -340px; top: -110px; width: 680px; height: 220px; display: none; opacity: 0; transform: scale(1.5); will-change: transform, opacity; }
+.banner.cv #bannerCv { display: block; }
+.banner.cv .banner-value { display: none; }
+.banner.cv.show #bannerCv { animation: cv-in .45s var(--expo-out) both; }
+.banner.cv.show #bannerCv.slam { animation: cv-slam .3s var(--expo-in) both; }
+.banner.cv.out #bannerCv { animation: cv-out .3s ease-in both; }
+@keyframes cv-in { from { opacity: 0; transform: scale(3.2); } to { opacity: 1; transform: scale(1.5); } }
+@keyframes cv-slam { from { opacity: 1; transform: scale(2.1); } to { opacity: 1; transform: scale(1.5); } }
+@keyframes cv-out { from { opacity: 1; transform: scale(1.5); } to { opacity: 0; transform: scale(1.2); } }
+.banner { perspective: none; }
+.banner.show .banner-rays { animation: rays-in .5s ease-out, rotate 14s linear infinite !important; }
+.banner-label { text-shadow: 0 3px 0 #000; }
+/* ONE MORE CHANCE の文字: 3D をやめて平面の動きに */
+.banner.next .banner-value { filter: none; }
+@keyframes letter-in { 0% { opacity: 0; transform: translateY(-120px) scale(2.2); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+.banner.out .banner-value, .banner.out .banner-label, .banner.next.out .banner-value { animation: fade-out .3s ease-in both; }
+@keyframes fade-out { to { opacity: 0; } }
+/* 扉: 模様をやめ、単色のグラデーション＋縁の帯だけ */
+.door, .door.l, .door.r { background: linear-gradient(180deg, #1c1c21, #0c0c0f); }
+.shutter { background: linear-gradient(180deg, #1c1c21, #0c0c0f); }
+/* ステージ名のチップ: 平面1枚。拡大から着地するだけ（3D回転なし） */
+.shutter-label, #stage.fin .shutter-label { perspective: none; }
+.medal { transform-style: flat; -webkit-transform-style: flat; }
+.medal .face { transform: none; backface-visibility: visible; -webkit-backface-visibility: visible; }
+.shutter-label.stamp .medal { animation: chip-in .5s both; }
+@keyframes chip-in { 0% { opacity: 0; transform: scale(2.6) rotate(-24deg); animation-timing-function: cubic-bezier(.7, 0, .84, 0); } 70% { opacity: 1; transform: scale(.94) rotate(2deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+.shutter-label.out .medal { animation: chip-out .2s ease-in both; }
+@keyframes chip-out { to { opacity: 0; transform: scale(1.3); } }
+.shutter-rays { display: none; }
+/* 虹色のときの色回しは完全に停止済み。外周光も演出中は消える */
+/* 診断表示 */
+#meter { position: absolute; left: 10px; bottom: 8px; z-index: 7; display: none; padding: 6px 12px; border-radius: 8px; font: 600 18px/1.2 ui-monospace, Menlo, monospace; color: #9ff; background: rgba(0, 0, 0, .7); pointer-events: none; }
