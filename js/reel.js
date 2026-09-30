@@ -52,6 +52,7 @@ const Reel = (function () {
     100000: { face: ["#ffffff","#ffffff","#ffffff","#ffffff","#ffffff","#ffffff","#ffffff","#ffffff"], ext: ["#1c1002","#f0c65a"], edge: '#0a0603', rim: '#ffffff', glow: 'rgba(255,255,255,.95)', rainbow: true },
   };
 
+  let frameMs = 16.7, slow = false; // リール描画のコマ間隔の平均と、30フレームに落としているか
   let cv, ctx, stage = 1, strip = STRIPS[1], pos = 0, raf = 0;
   const imgs = {};
 
@@ -320,6 +321,7 @@ const Reel = (function () {
       const prof = buildProfile(pos, st, sym, opts || {});
       const t0 = performance.now();
       let lastP = pos, lastT = 0, lastCell = Math.round(pos);
+      let lastNow = t0, frameNo = 0;
       let started = false, teased = false, neared = false, stopped = false;
       cancelAnimationFrame(raf);
       function frame(now) {
@@ -342,7 +344,12 @@ const Reel = (function () {
           resolve();
           return;
         }
-        draw(p, speed);
+        // 端末が60フレームを保てないときは、描くのを1コマおきにする（不安定に上下するより30で安定させる）。
+        // 位置は時刻から計算しているので、止まる位置や音のタイミングは変わらない。
+        frameMs += (Math.min(100, now - lastNow) - frameMs) * 0.08;
+        lastNow = now;
+        if (!slow && frameMs > 21) slow = true; else if (slow && frameMs < 12) slow = false;
+        if (!slow || (frameNo++ & 1) === 0) draw(p, speed);
         raf = requestAnimationFrame(frame);
       }
       raf = requestAnimationFrame(frame);
