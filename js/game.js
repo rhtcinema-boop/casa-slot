@@ -57,13 +57,6 @@ const Game = (function () {
 
   /* 連続フラッシュ */
   function strobe(n, gap) { for (let i = 0; i < n; i++) setTimeout(() => flash(true), i * (gap || 130)); }
-  /* 暗転（sec 秒）。明ける瞬間に閃光。 */
-  async function blackout(sec, beat) {
-    $('blackout').classList.add('on');
-    if (beat !== false) { Sfx.play('heartbeat'); if (sec > 1.1) setTimeout(() => Sfx.play('heartbeat'), 600); }
-    await wait(sec * 1000);
-    $('blackout').classList.remove('on');
-  }
   function quake() { restart($('viewport'), 'quake'); } // 画面全体を揺らす
   function restart(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
   function flash(soft) { const f = $('flash'); f.className = ''; void f.offsetWidth; f.className = soft ? 'go-soft' : 'go'; }
@@ -324,23 +317,15 @@ const Game = (function () {
     return { type: 'respin' };
   }
 
-  /* ---------- 確定演出 ----------
-     最終結果が 0 以外のプレイでだけ、低確率で発生する（ハズレのプレイでは絶対に出ない）。
-       freeze : レバー直後に暗転・無音 → 閃光
-       aura   : 回転中に筐体が白金に光り出す
-       late   : 停止の直前に告知音と閃光（最終ステージのみ）
-     SURE_RATE は1回のレバーあたりの発生率。1プレイで1回まで。発生後は結果が出るまで全体が虹色になる。 */
-  const SURE_RATE = { freeze: 0.02, aura: 0.03, late: 0.03, aa: 0.3 }; // 虹は本当にたまに。aa は高額当選のプレイでの発生率
-  const AA_MIN = 5000; // この金額以上が確定しているプレイでだけ AA（エースのペア）が出る
+  /* ---------- 確定演出（虹） ----------
+     STAGE 2 以降で、最終結果が 0 以外に確定しているプレイでだけ、回転中に突然すべてが虹色になる。
+     ハズレのプレイでは絶対に出ない。1プレイで1回まで。発生後は結果が出るまで虹色のまま。
+     SURE_RATE はレバー1回あたりの発生率（たまに出る程度）。 */
+  const SURE_RATE = 0.06;
   function pickSure(play, st) {
-    if (sureShown || !(play.value > 0) || play.overflow) return null;
-    if (window.__fxTest && window.__fxTest.sure !== undefined) return window.__fxTest.sure;
-    const r = Math.random();
-    if (play.value >= AA_MIN && Math.random() < SURE_RATE.aa) return 'aa';
-    if (r < SURE_RATE.freeze) return 'freeze';
-    if (r < SURE_RATE.freeze + SURE_RATE.aura) return 'aura';
-    if (st === play.stage && r < SURE_RATE.freeze + SURE_RATE.aura + SURE_RATE.late) return 'late';
-    return null;
+    if (sureShown || !(play.value > 0) || play.overflow || st < 2) return false;
+    if (window.__fxTest && window.__fxTest.sure !== undefined) return !!window.__fxTest.sure;
+    return Math.random() < SURE_RATE;
   }
   function announceSure(main, sub) {
     sureShown = true;
@@ -373,20 +358,11 @@ const Game = (function () {
     const sure = pickSure(play, st);
     setPlate(sureShown ? 'spin sure' : 'spin', sureShown ? sureText[0] : 'GOOD LUCK', sureShown ? sureText[1] : 'STAGE ' + st);
 
-    if (sure === 'freeze') { // 暗転フリーズ → 閃光
-      $('blackout').classList.add('on');
-      Sfx.play('freeze');
-      await wait(1500);
-      $('blackout').classList.remove('on');
-      announceSure();
-      await wait(1100);
-    }
-    if (sure === 'aa') await pocketAces();
     const extra = {};
     FX.cards(10, 0.3, { sweep: true });
     Sfx.play('shuffle');
-    if (sure === 'aura') extra.onStart = () => setTimeout(() => { if (busy) announceSure(); }, 900);
-    if (sure === 'late') extra.onNear = announceSure;
+    // 回転中のどこかで突然虹色になる（タイミングは毎回違う）
+    if (sure) extra.onStart = () => setTimeout(() => { if (busy && !sureShown) announceSure(); }, 500 + Math.random() * 2000);
 
     if (pat.type === 'respin') {
       // ハズレと思いきや当たり: いったん 0 で完全に止まり、沈黙のあと再始動する
@@ -662,14 +638,6 @@ const Game = (function () {
     await arrive(to, true);
   }
 
-  /* ---- カード（AA の確定演出で使用） ---- */
-  function pcard(rank, suit) {
-    const red = suit === '\u2665' || suit === '\u2666';
-    const c = '<span class="cr">' + rank + '<i>' + suit + '</i></span>';
-    return mk('pcard' + (red ? ' red' : ''), '<div class="b"></div><div class="f">' + c + '<span class="big">' + suit + '</span><span class="cr br">' + rank + '<i>' + suit + '</i></span></div>');
-  }
-  const place = (el, x, y, rz, ry, s) => { el.style.transform = 'translate(' + x + 'px,' + y + 'px) rotateZ(' + rz + 'deg) rotateY(' + ry + 'deg) scale(' + s + ')'; };
-
   async function transVault(to) {
     const fin = to === 3, colors = STAGE_COL[to];
     stageEl.classList.remove('opening', 'opening-slow', 'blast');
@@ -697,40 +665,6 @@ const Game = (function () {
     stageEl.classList.remove('shut', 'ceremony');
     await arrive(to, false);
     setTimeout(() => stageEl.classList.remove('opening-slow', 'blast'), 700);
-  }
-
-  /* AA（エースのペア）: 高額当選が確定しているプレイでだけ出る（全体で約4秒）。
-     先に「AA なら高額当選確定」の文字と伏せた2枚 → 1枚ずつめくれる → A・A → 確定 */
-  async function pocketAces() {
-    const y = stageH / 2 + 60;
-    const cover = mk('cover');
-    const text = mk('aatext', '<small>POCKET ACES</small>A・A なら 高額当選確定！');
-    const cards = [['A', '\u2660'], ['A', '\u2665']].map((c, i) => { const el = pcard(c[0], c[1]); place(el, 800, -420, rnd(-160, 160), 0, 1.15); return { el, x: 800 + (i ? 165 : -165), rz: i ? 7 : -7 }; });
-    await frame();
-    cover.classList.add('on');
-    Sfx.play('freeze');
-    for (const c of cards) { place(c.el, c.x, y, c.rz, 0, 1.15); Sfx.play('deal'); await wait(170); }
-    await wait(850);                                    // 文字を読ませる
-    place(cards[0].el, cards[0].x, y, cards[0].rz, 180, 1.15); Sfx.play('flip'); Sfx.play('bolt', 0.3);
-    setTimeout(() => { flash(true); FX.burst(cards[0].x, 500, 60, { max: 700, colors: ['white', 'gold'] }); }, 220);
-    Sfx.play('heartbeat');
-    await wait(750);                                    // 2枚目は溜める
-    place(cards[1].el, cards[1].x, y, cards[1].rz, 180, 1.15); Sfx.play('flip'); Sfx.play('bolt', 1);
-    timeWarp(0.25, 1, 0.4);                             // 2枚目はスローでめくれ、指数的に加速
-    await wait(430);
-    cards.forEach((c) => c.el.classList.add('hot'));
-    text.className = 'aatext ok';
-    text.innerHTML = '高額当選 確定！！';
-    flash(false); quake();
-    FX.ring(800, 450, 'white', 1200, 0.9);
-    FX.chips(80, 0.8, ['gold', 'black', 'red']);
-    announceSure('BIG WIN CONFIRMED', '高額当選確定！');
-    await wait(1300);
-    cards.forEach((c, i) => place(c.el, c.x + (i ? 900 : -900), -500, i ? 60 : -60, 180, 1));
-    text.style.transition = 'opacity .3s'; text.style.opacity = 0;
-    cover.classList.remove('on');
-    await wait(350);
-    $('trans').innerHTML = '';
   }
 
   /* 次のプレイへ戻るときの短いシャッター */
