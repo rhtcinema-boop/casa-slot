@@ -949,3 +949,19 @@ input[type=range].vol { width: 380px; height: 44px; accent-color: #e9c25e; touch
 .lever { left: calc(1270px - 38px * var(--t)); transform: perspective(1000px) rotateY(-13deg) scale(calc(1 - .08 * var(--t))); }
 .credit-box { left: calc(1290px - 24px * var(--t)); }
 .help-btn { left: calc(1212px - 24px * var(--t)); }
+
+/* クレジットと合計当選額（右上・2段） */
+.credit-box { top: 14px; height: 104px; width: 250px; display: block; padding: 8px 18px 6px 18px; }
+.credit-box > div { display: flex; align-items: center; justify-content: space-between; height: 45px; }
+.credit-box > div + div { border-top: 1px solid rgba(var(--acc), .3); }
+.credit-box small { font-size: 19px; }
+.credit-box b { font-size: 38px; }
+.credit-box { left: calc(1262px - 26px * var(--t)); }
+.help-btn { left: calc(1190px - 26px * var(--t)); top: 38px; }
+/* 結果バー: RESULT と TOTAL を並べる */
+.lockbar .res b { font-size: 60px; }
+.lockbar .res.tot { margin-left: 8px; padding-left: 26px; border-left: 2px solid rgba(var(--acc), .35); }
+.lockbar .res.tot b { font-size: 46px; }
+.lockbar { gap: 18px; justify-content: flex-start; }
+.lockbar .side { margin-left: auto; }
+.banner.total .banner-label { font-size: 62px; top: -165px; }
