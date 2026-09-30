@@ -71,6 +71,22 @@ const Sfx = (function () {
     if (o.rev) { const g = ctx.createGain(); g.gain.value = o.rev; head.connect(g); g.connect(revSend); }
     if (o.dly) { const g = ctx.createGain(); g.gain.value = o.dly; head.connect(g); g.connect(dlySend); }
   }
+  /* 軽量化: 同時に鳴っている音の数を数え、多すぎるときは小さな音（きらめき・コインなど）から間引く。
+     音を一度に大量に作ると、その瞬間に画面が引っかかるため。 */
+  const voices = [];
+  const MAX_VOICES = 48;
+  function admit(t, dur, gain) {
+    const now = ctx.currentTime;
+    while (voices.length && voices[0] < now) voices.shift();
+    const busy = voices.filter((e) => e > t).length;
+    if (busy >= MAX_VOICES) return false;
+    if (busy >= MAX_VOICES * 0.6 && gain < 0.12) return false; // 混んできたら小さい音は鳴らさない
+    const end = t + dur;
+    let i = voices.length;
+    while (i > 0 && voices[i - 1] > end) i--;
+    voices.splice(i, 0, end);
+    return true;
+  }
   function envelope(g, t, a, d, peak) {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a);
@@ -79,6 +95,7 @@ const Sfx = (function () {
   /* o: {type,f,f2,at,a,d,g,lp,lp2,vib,trem,pan,rev,dly} */
   function tone(o) {
     const t = ctx.currentTime + (o.at || 0), a = o.a || 0.004, d = o.d || 0.1;
+    if (!admit(t, a + d, o.g || 0.2)) return;
     const osc = ctx.createOscillator();
     osc.type = o.type || 'sine';
     osc.frequency.setValueAtTime(o.f, t);
@@ -113,6 +130,7 @@ const Sfx = (function () {
   /* o: {ft,f,f2,q,at,a,d,g,pan,rev,dly} */
   function noise(o) {
     const t = ctx.currentTime + (o.at || 0), a = o.a || 0.002, d = o.d || 0.05;
+    if (!admit(t, a + d, o.g || 0.2)) return;
     const src = ctx.createBufferSource();
     src.buffer = noiseBuf; src.loop = true;
     const f = ctx.createBiquadFilter();
@@ -129,6 +147,7 @@ const Sfx = (function () {
   /* FM音源。o: {f,f2,ratio,idx,at,a,d,g,pan,rev,dly} — ベル・チャイム・ゴング・レーザー */
   function fm(o) {
     const t = ctx.currentTime + (o.at || 0), a = o.a || 0.003, d = o.d || 0.4;
+    if (!admit(t, a + d, o.g || 0.2)) return;
     const ratio = Math.min(o.ratio || 3.5, 15000 / Math.max(o.f, o.f2 || 0)); // 変調波が可聴域を超えないように
     const car = ctx.createOscillator(), mod = ctx.createOscillator(), mg = ctx.createGain(), g = ctx.createGain();
     car.frequency.setValueAtTime(o.f, t);
@@ -445,11 +464,10 @@ const Sfx = (function () {
       while (t < dur) {
         const u = t / dur;
         snare(t, 0.08 + 0.26 * u, i % 2 ? 0.25 : -0.25);
-        if (i % 3 === 0) timp(hz(r - 24 + (u > 0.6 ? 5 : 0)), t, 0.25, 0.2 + 0.3 * u);
-        t += 0.085 - 0.05 * u; i++;
+        if (i % 4 === 0) timp(hz(r - 24 + (u > 0.6 ? 5 : 0)), t, 0.25, 0.2 + 0.3 * u);
+        t += 0.11 - 0.05 * u; i++;
       }
-      pad([r, r + 7, r + 12], 0, dur * 0.9, 0.1, 0.05, { trem: 12 });
-      tone({ type: 'sawtooth', f: hz(r), f2: hz(r + 12), a: dur * 0.95, d: 0.05, g: 0.09, lp: 1800, trem: 16 });
+      tone({ type: 'sawtooth', f: hz(r), f2: hz(r + 12), a: dur * 0.95, d: 0.05, g: 0.13, lp: 1800, trem: 16 });
       noise({ f: 300, f2: 5000, q: 1, a: dur * 0.95, d: 0.05, g: 0.2 });
       revCrash(Math.max(0, dur - 1.1), 1.05, 0.3);
     },
@@ -466,13 +484,13 @@ const Sfx = (function () {
       whoosh(0, 1.1, 0.3, true, -0.5); whoosh(0.05, 1.1, 0.3, true, 0.5);
       crash(0, 3, 0.36, -0.4); crash(0.08, 3, 0.32, 0.4);
       clang(0, 0.12, 1.8);
-      hit([r - 24, r - 12, r, r + 4, r + 7, r + 12, r + 16], 0, 0.1);
-      pad(fin ? [r, r + 3, r + 7, r + 12, r + 15] : [r, r + 4, r + 7, r + 12], 0.1, 0.5, 2.4, 0.045);
-      const n = fin ? 24 : 16;
+      hit([r - 12, r, r + 7, r + 12], 0, 0.12);
+      pad(fin ? [r, r + 7, r + 15] : [r, r + 7, r + 16], 0.1, 0.5, 2.0, 0.05);
+      const n = fin ? 10 : 8;
       for (let i = 0; i < n; i++) chime(hz(r + 12 + [0, 4, 7][i % 3] + 12 * Math.floor(i / 6)), 0.2 + i * 0.05, 0.7, 0.1, { pan: -0.8 + (i / n) * 1.6 });
       melody([[72, 0, 0.5], [79, 0.5, 0.5], [84, 1, 3]], 0.16, 0.35, r - 60, (f, t, l) => { brass(f, t, l, 0.12); brass(f / 2, t, l, 0.09); });
-      if (fin) { gong(hz(r - 24), 0, 3, 0.3); for (let i = 0; i < 8; i++) timp(hz(r - 24), 0.1 + i * 0.12, 0.3, 0.4); }
-      coins(0.5, 1.6, 12);
+      if (fin) { gong(hz(r - 24), 0, 3, 0.3); for (let i = 0; i < 4; i++) timp(hz(r - 24), 0.1 + i * 0.22, 0.3, 0.4); }
+      coins(0.5, 1.2, 5);
     },
     stageReady() { // 新しいステージでレバー待ちになった合図
       const r = ROOT[stage];
