@@ -24,6 +24,7 @@ const Store = (function () {
       locked: false,              // true の間はスタッフ認証までレバー完全ロック
       logSeq: 0,
       pendingLog: [],
+      credits: 0,                 // 残クレジット（1プレイで1消費）
       settings: { volume: 0.9 },
     };
   }
