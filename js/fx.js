@@ -65,7 +65,7 @@ const FX = (function () {
     setAmbient.colors = colors || ['gold'];
     if (rate > 0) kick();
   }
-  function clear() { parts = []; rings = []; lines = []; bolts = []; }
+  function clear() { parts = []; rings = []; lines = []; bolts = []; heights = new Array(COLS).fill(0); }
   /* 集中線。inward: 外から中心へ / それ以外: 中心から外へ飛ぶ */
   function streaks(x, y, n, dur, o) {
     o = o || {};
@@ -99,10 +99,92 @@ const FX = (function () {
     }
     kick();
   }
-  /* 金貨のシャワー */
-  function coins(n, dur) {
+  /* ---------- カジノチップ・トランプ ---------- */
+  const COLS = 40;
+  let heights = new Array(COLS).fill(0), groundY = 900, onLand = null;
+  const CHIP = { red: ['#d8261c', '#ffffff'], blue: ['#1f5fd0', '#ffffff'], green: ['#178a45', '#ffffff'], black: ['#1b1b20', '#e9c25e'], purple: ['#7a2fc0', '#ffffff'], gold: ['#e0a62f', '#1b1b20'], white: ['#f2f2f2', '#d8261c'] };
+  const chipCache = {}, cardCache = {};
+  function chipSprite(name) {
+    if (chipCache[name]) return chipCache[name];
+    const c = document.createElement('canvas');
+    c.width = c.height = 96;
+    const x = c.getContext('2d'), col = CHIP[name] || CHIP.red;
+    x.translate(48, 48);
+    x.fillStyle = '#0a0a0c'; x.beginPath(); x.arc(0, 0, 47, 0, 6.2832); x.fill();
+    x.fillStyle = col[0]; x.beginPath(); x.arc(0, 0, 45, 0, 6.2832); x.fill();
+    x.strokeStyle = col[1]; x.lineWidth = 12;                       // 縁の縞
+    for (let i = 0; i < 8; i++) { x.beginPath(); x.arc(0, 0, 39, i * 0.7854 - 0.17, i * 0.7854 + 0.17); x.stroke(); }
+    x.strokeStyle = 'rgba(0,0,0,.35)'; x.lineWidth = 2; x.beginPath(); x.arc(0, 0, 32, 0, 6.2832); x.stroke();
+    x.strokeStyle = col[1]; x.lineWidth = 2.5; x.setLineDash([5, 5]); x.beginPath(); x.arc(0, 0, 28, 0, 6.2832); x.stroke(); x.setLineDash([]);
+    const g = x.createRadialGradient(-8, -10, 2, 0, 0, 24);
+    g.addColorStop(0, 'rgba(255,255,255,.45)'); g.addColorStop(1, 'rgba(0,0,0,.18)');
+    x.fillStyle = g; x.beginPath(); x.arc(0, 0, 23, 0, 6.2832); x.fill();
+    x.fillStyle = col[1]; x.font = '700 26px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('\u2660', 0, 1);
+    return (chipCache[name] = c);
+  }
+  function roundRect(x, l, t, w, h, r) { x.beginPath(); x.moveTo(l + r, t); x.arcTo(l + w, t, l + w, t + h, r); x.arcTo(l + w, t + h, l, t + h, r); x.arcTo(l, t + h, l, t, r); x.arcTo(l, t, l + w, t, r); x.closePath(); }
+  const FACES = [['A', '\u2660'], ['K', '\u2665'], ['Q', '\u2666'], ['J', '\u2663'], ['10', '\u2660'], ['A', '\u2665'], ['K', '\u2660']];
+  function cardSprite(i) {
+    if (cardCache[i]) return cardCache[i];
+    const c = document.createElement('canvas');
+    c.width = 100; c.height = 140;
+    const x = c.getContext('2d'), f = FACES[i % FACES.length];
+    const red = f[1] === '\u2665' || f[1] === '\u2666';
+    roundRect(x, 1, 1, 98, 138, 9); x.fillStyle = '#fbfaf5'; x.fill(); x.strokeStyle = '#8a8a8a'; x.lineWidth = 2; x.stroke();
+    x.fillStyle = red ? '#d0201a' : '#15151a'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = '700 26px Georgia, serif'; x.fillText(f[0], 18, 20); x.font = '22px Georgia, serif'; x.fillText(f[1], 18, 44);
+    x.font = '70px Georgia, serif'; x.fillText(f[1], 50, 80);
+    return (cardCache[i] = c);
+  }
+  function cardBack() {
+    if (cardCache.back) return cardCache.back;
+    const c = document.createElement('canvas');
+    c.width = 100; c.height = 140;
+    const x = c.getContext('2d');
+    roundRect(x, 1, 1, 98, 138, 9); x.fillStyle = '#15151a'; x.fill(); x.strokeStyle = '#e9c25e'; x.lineWidth = 3; x.stroke();
+    roundRect(x, 9, 9, 82, 122, 5); x.strokeStyle = '#b8862b'; x.lineWidth = 1.5; x.stroke();
+    x.save(); x.clip(); x.strokeStyle = 'rgba(233,194,94,.5)'; x.lineWidth = 1;
+    for (let k = -140; k < 240; k += 12) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k + 140, 140); x.moveTo(k + 140, 0); x.lineTo(k, 140); x.stroke(); }
+    x.restore();
+    return (cardCache.back = c);
+  }
+  /* チップの雨。o.land で下に積み上がる。o.size で大きさ。 */
+  function chips(n, dur, cols, o) {
+    o = o || {};
+    cols = cols || ['red'];
     for (let i = 0; i < n; i++) {
-      parts.push({ coin: true, t: -rnd(0, dur), life: rnd(1.5, 2.3), x: rnd(60, CW - 60), y: -OFF - 30, vx: rnd(-50, 50), vy: rnd(380, 720), g: 700, drag: 0.15, size: rnd(13, 24), rot: rnd(0, 6), vr: rnd(-2, 2), sp: rnd(7, 13), c: 'gold', tw: 0 });
+      const size = rnd(o.size || 18, (o.size || 18) * 1.35);
+      parts.push({ img: chipSprite(pick(cols)), land: !!o.land, t: -rnd(0, dur), life: 4, x: rnd(40, CW - 40), y: -OFF - 40, vx: rnd(-60, 60), vy: rnd(420, 820), g: 900, drag: 0.12, size, rot: rnd(0, 6), vr: rnd(-2.5, 2.5), sp: rnd(7, 13), c: 'gold', tw: 0 });
+    }
+    kick();
+  }
+  /* チップの噴水（下から噴き上がる） */
+  function chipFountain(x, y, n, dur, cols, o) {
+    o = o || {};
+    for (let i = 0; i < n; i++) {
+      const size = rnd(18, 26);
+      parts.push({ img: chipSprite(pick(cols)), land: !!o.land, t: -rnd(0, dur), life: 4, x, y, vx: rnd(-330, 330) + (o.vx || 0), vy: -rnd(1100, 1900), g: 1500, drag: 0.2, size, rot: rnd(0, 6), vr: rnd(-4, 4), sp: rnd(9, 15), c: 'gold', tw: 0 });
+    }
+    kick();
+  }
+  /* 積み上がったチップを弾き飛ばして消す */
+  function releasePile() {
+    parts.forEach((p) => {
+      if (!p.landed && !p.land) return;
+      p.landed = false; p.land = false; p.t = 0; p.life = 1.5;
+      p.vx = rnd(-700, 700); p.vy = -rnd(300, 1300); p.g = 2200; p.vr = rnd(-8, 8);
+    });
+    heights = new Array(COLS).fill(0);
+  }
+  function setGround(y, cb) { groundY = y; onLand = cb || null; }
+  /* トランプが舞う。o.sweep: 左から右へ流れる / それ以外: (x,y) から飛び散る */
+  function cards(n, dur, o) {
+    o = o || {};
+    for (let i = 0; i < n; i++) {
+      const p = { img: cardSprite(Math.floor(Math.random() * FACES.length)), card: true, t: -rnd(0, dur), life: 2.2, size: rnd(50, 74), rot: rnd(-0.6, 0.6), vr: rnd(-3, 3), sp: rnd(5, 10), c: 'gold', tw: 0, drag: 0.1 };
+      if (o.sweep) { p.x = -120; p.y = rnd(200, 700); p.vx = rnd(1500, 2400); p.vy = rnd(-420, 120); p.g = 500; }
+      else { const a = Math.random() * 6.2832, s = rnd(500, 1300); p.x = o.x; p.y = o.y; p.vx = Math.cos(a) * s; p.vy = Math.sin(a) * s - 300; p.g = 1100; p.drag = 0.6; }
+      parts.push(p);
     }
     kick();
   }
@@ -130,7 +212,7 @@ const FX = (function () {
       const p = parts[i];
       p.t += dt;
       if (p.t < 0) continue;
-      const u = p.t / p.life;
+      const u = p.landed ? 0 : p.t / p.life;
       if (u >= 1) { parts.splice(i, 1); continue; }
       let alpha, size = p.size;
       if (p.conv) {
@@ -142,27 +224,40 @@ const FX = (function () {
         alpha = Math.min(1, u * 3);
         size = p.size * (1.2 - u * 0.6);
       } else {
-        p.vx -= p.vx * p.drag * dt;
-        p.vy += (p.g - p.vy * p.drag) * dt;
-        p.x += p.vx * dt; p.y += p.vy * dt;
+        if (!p.landed) {
+          p.vx -= p.vx * p.drag * dt;
+          p.vy += (p.g - p.vy * p.drag) * dt;
+          p.x += p.vx * dt; p.y += p.vy * dt;
+          if (p.land && p.vy > 0) { // 山の上に着地
+            const col = Math.max(0, Math.min(COLS - 1, Math.floor(p.x / (CW / COLS))));
+            const gy = groundY - heights[col] - p.size * 0.4;
+            if (p.y >= gy) {
+              p.y = gy; p.landed = true; p.rot = rnd(-0.18, 0.18);
+              heights[col] += p.size * 0.5;
+              if (col > 0) heights[col - 1] += p.size * 0.16;
+              if (col < COLS - 1) heights[col + 1] += p.size * 0.16;
+              if (onLand && Math.random() < 0.35) onLand();
+            }
+          }
+        }
         alpha = p.amb ? Math.sin(u * Math.PI) * 0.6 : 1 - u * u;
         alpha *= 0.75 + 0.25 * Math.sin(p.t * 14 + p.tw); // きらめき
       }
       ctx.globalAlpha = Math.max(0, alpha);
-      if (p.coin) { // 回転しながら降る金貨
-        p.rot += p.vr * dt;
-        const sq = Math.cos(p.t * p.sp);
+      if (p.img) { // チップ・カード（スプライトを回転・反転させて描く）
         ctx.save();
         ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = p.landed ? 1 : Math.min(1, (1 - u) * 6);
         ctx.translate(p.x, p.y + OFF);
         ctx.rotate(p.rot);
-        ctx.scale(1, Math.max(0.12, Math.abs(sq)));
-        ctx.fillStyle = sq > 0 ? '#e9b93c' : '#b8862b';
-        ctx.beginPath(); ctx.arc(0, 0, size, 0, 6.2832); ctx.fill();
-        ctx.fillStyle = sq > 0 ? '#fff1b8' : '#e9c25e';
-        ctx.beginPath(); ctx.arc(0, 0, size * 0.72, 0, 6.2832); ctx.fill();
-        ctx.fillStyle = sq > 0 ? '#f0c04c' : '#c8922e';
-        ctx.beginPath(); ctx.arc(0, 0, size * 0.55, 0, 6.2832); ctx.fill();
+        if (p.landed) ctx.scale(1, 0.42);
+        else {
+          p.rot += p.vr * dt;
+          const sq = Math.cos(p.t * p.sp);
+          if (p.card) ctx.scale(Math.abs(sq) < 0.1 ? 0.1 : sq, 1); else ctx.scale(1, Math.max(0.16, Math.abs(sq)));
+        }
+        const w = p.card ? size * 1.43 : size * 2, h = size * 2;
+        ctx.drawImage(p.card && !p.landed && Math.cos(p.t * p.sp) < 0 ? cardBack() : p.img, -w / 2, -h / 2, w, h);
         ctx.restore();
         continue;
       }
@@ -241,5 +336,5 @@ const FX = (function () {
     ctx = cv.getContext('2d');
   }
 
-  return { init, burst, converge, rain, ring, setAmbient, clear, streaks, lightning, fountain, flakes, coins };
+  return { init, burst, converge, rain, ring, setAmbient, clear, streaks, lightning, fountain, flakes, chips, chipFountain, releasePile, setGround, cards };
 })();
