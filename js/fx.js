@@ -8,7 +8,7 @@ const FX = (function () {
   let timeScale = 1; // 1=等速。スローモーションや早回しに使う
   /* 軽量化: 1フレームにかかった時間の平均を見て、重い端末では粒子数を自動で減らす。総数にも上限を設ける。 */
   let Q = 0.75, avgMs = 16;
-  const MAX_PARTS = 520;
+  const MAX_PARTS = 360;
   const qn = (n) => (parts.length > MAX_PARTS ? 0 : Math.max(1, Math.round(n * Q)));
   const sprites = {};
   const COLORS = { gold: [255, 205, 96], white: [255, 246, 220], silver: [214, 226, 240], red: [255, 80, 70], blue: [70, 140, 255], cyan: [120, 225, 255], violet: [185, 120, 255], orange: [255, 150, 50], yellow: [255, 235, 80], green: [90, 240, 120] };
@@ -214,7 +214,7 @@ const FX = (function () {
   function loop(now) {
     const rawMs = Math.min(100, now - last);
     avgMs += (rawMs - avgMs) * 0.06;
-    Q = avgMs > 26 ? 0.4 : avgMs > 20 ? 0.58 : 0.8;
+    Q = avgMs > 26 ? 0.3 : avgMs > 20 ? 0.45 : 0.65;
     const dt = Math.min(0.05, (now - last) / 1000) * timeScale;
     last = now;
     if (ambient > 0) {
