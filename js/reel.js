@@ -379,5 +379,14 @@ const Reel = (function () {
     setStage(1);
   }
 
-  return { init, spin, setStage, get stage() { return stage; } };
+  /* 当選金額などの大きな文字を、リールと同じ金属の質感で1枚の画像として描く（DOMの文字＋影より軽い） */
+  function drawText(canvas, text, value) {
+    canvas.width = SW * S; canvas.height = CH * S; // 幅の再設定で全消去される
+    const x = canvas.getContext('2d');
+    x.scale(S, S);
+    const pal = value === 0 ? PAL.silver : PAL_BY_VALUE[value] || PAL.gold;
+    metalText(x, text, SW / 2, CH / 2, 190, NUM_FONT, pal, 640, true);
+  }
+
+  return { init, spin, setStage, drawText, get stage() { return stage; } };
 })();
