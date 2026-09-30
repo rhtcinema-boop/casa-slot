@@ -39,6 +39,18 @@ const Reel = (function () {
     nextRed: { face: ['#ffffff', '#ffdcd0', '#ff7a62', '#b3261a', '#3d0604', '#a8221a', '#ff8e76', '#ffe9e0'], ext: ['#1a0302', '#d0402c'], edge: '#0d0101', rim: '#ffffff', glow: 'rgba(255,80,50,.85)' },
   };
   PAL.next = PAL.nextBlue;
+  /* 金額ごとの素材色: 500=ブロンズ / 1,000=ゴールド / 2,000=エメラルド / 3,000=サファイア / 5,000=アメジスト
+     / 10,000=ルビー / 50,000=ダイヤモンド / 100,000=レインボー */
+  const PAL_BY_VALUE = {
+    500: { face: ["#fff4e6","#f3c99c","#cf8846","#8c4c1e","#3d1d08","#8c4c1e","#dba061","#ffe8cc"], ext: ["#1f0e03","#a3622c"], edge: '#0a0603', rim: '#ffffff', glow: null },
+    1000: { face: ["#fffef5","#ffe9a3","#f2c34f","#b07a1a","#5a3706","#a86f18","#f0c65a","#fff3c4"], ext: ["#1c1002","#a87a1e"], edge: '#0a0603', rim: '#ffffff', glow: null },
+    2000: { face: ["#f2fff6","#b9f7cb","#41d67c","#12803d","#043d1a","#167a3c","#62e291","#e2ffea"], ext: ["#021c0c","#1f9a50"], edge: '#0a0603', rim: '#ffffff', glow: 'rgba(70,230,130,.55)' },
+    3000: { face: ["#ffffff","#d2efff","#6cbcf5","#1f66b0","#06224a","#1d5ea6","#79c6f7","#e6f6ff"], ext: ["#030d1c","#2f7fd0"], edge: '#0a0603', rim: '#ffffff', glow: 'rgba(90,180,255,.6)' },
+    5000: { face: ["#fbf2ff","#e5c6ff","#b86ff7","#6a22b0","#2a0650","#6a24a8","#c78ef9","#f5e8ff"], ext: ["#14022a","#8a3fd6"], edge: '#0a0603', rim: '#ffffff', glow: 'rgba(190,110,255,.65)' },
+    10000: { face: ["#ffffff","#ffdcd0","#ff6a55","#c01d16","#4a0604","#b31b14","#ff8e76","#fff0e8"], ext: ["#1a0302","#e0a62f"], edge: '#0a0603', rim: '#ffffff', glow: 'rgba(255,80,50,.75)' },
+    50000: { face: ["#ffffff","#f4fcff","#cfeaf8","#86aec6","#2f4a5c","#8ab4cc","#e2f5ff","#ffffff"], ext: ["#0c1a24","#9fd0ea"], edge: '#0a0603', rim: '#ffffff', glow: 'rgba(210,240,255,.9)' },
+    100000: { face: ["#ffffff","#ffffff","#ffffff","#ffffff","#ffffff","#ffffff","#ffffff","#ffffff"], ext: ["#1c1002","#f0c65a"], edge: '#0a0603', rim: '#ffffff', glow: 'rgba(255,255,255,.95)', rainbow: true },
+  };
 
   let cv, ctx, stage = 1, strip = STRIPS[1], pos = 0, raf = 0;
   const imgs = {};
@@ -86,6 +98,15 @@ const Reel = (function () {
     STOPS.forEach((s, i) => g.addColorStop(s, pal.face[i]));
     o.fillStyle = g; o.fillText(text, cx, y);
     o.globalCompositeOperation = 'source-atop';
+    if (pal.rainbow) { // 虹色: 横に色を流し、その上に金属の明暗（上が明るく、中央に暗い線）を重ねる
+      const wText = o.measureText(text).width;
+      const rg = o.createLinearGradient(cx - wText / 2, 0, cx + wText / 2, 0);
+      ['#ff3b30', '#ff9500', '#ffe600', '#34e36a', '#32d4ff', '#3a6bff', '#c15cff'].forEach((c, i) => rg.addColorStop(i / 6, c));
+      o.fillStyle = rg; o.fillRect(0, y - asc - 10, SW, asc + desc + 20);
+      const vg = o.createLinearGradient(0, y - asc, 0, y + desc);
+      vg.addColorStop(0, 'rgba(255,255,255,.8)'); vg.addColorStop(0.36, 'rgba(255,255,255,0)'); vg.addColorStop(0.49, 'rgba(0,0,0,.4)'); vg.addColorStop(0.53, 'rgba(0,0,0,.4)'); vg.addColorStop(0.6, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(255,255,255,.55)');
+      o.fillStyle = vg; o.fillRect(0, y - asc - 10, SW, asc + desc + 20);
+    }
     o.lineWidth = px * 0.04;
     o.strokeStyle = 'rgba(255,255,255,.95)'; o.strokeText(text, cx - px * 0.012, y - px * 0.022); // 左上の面取り（光）
     o.strokeStyle = 'rgba(0,0,0,.5)'; o.strokeText(text, cx + px * 0.012, y + px * 0.024);       // 右下の面取り（影）
@@ -122,7 +143,7 @@ const Reel = (function () {
       chevrons(x, 66, CH / 2, 1, nextPal || PAL.next);
       chevrons(x, SW - 66, CH / 2, -1, nextPal || PAL.next);
     } else {
-      const pal = sym === 0 ? PAL.silver : sym >= 10000 ? PAL.rich : PAL.gold;
+      const pal = sym === 0 ? PAL.silver : PAL_BY_VALUE[sym] || PAL.gold;
       metalText(x, fmt(sym), SW / 2, CH / 2, 190, NUM_FONT, pal, 600);
     }
     return c;
