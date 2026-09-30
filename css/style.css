@@ -965,3 +965,11 @@ input[type=range].vol { width: 380px; height: 44px; accent-color: #e9c25e; touch
 .lockbar { gap: 18px; justify-content: flex-start; }
 .lockbar .side { margin-left: auto; }
 .banner.total .banner-label { font-size: 62px; top: -165px; }
+
+/* ステージ名の立体チップ: 大きく、文字をはっきり */
+.medal { left: -390px; top: -390px; width: 780px; height: 780px; }
+.medal .face { box-shadow: inset 0 0 0 7px #000, inset 0 0 0 16px var(--accent), 0 0 150px var(--glow); }
+.medal .face::before { inset: 18.5%; box-shadow: 0 0 0 5px var(--accent), inset 0 0 60px rgba(var(--acc), .35); }
+.shutter-label small { font-size: 62px; letter-spacing: .34em; padding-left: .34em; color: #fff; -webkit-text-stroke: 0; text-shadow: 0 3px 0 #000, 0 0 22px rgba(var(--acc), 1); }
+.shutter-label b { font-size: 300px; line-height: .95; -webkit-text-stroke-width: 4px; }
+.shutter-label em { font-size: 50px; letter-spacing: .1em; padding-left: .1em; margin-top: 6px; color: #fff; text-shadow: 0 3px 0 #000, 0 0 22px rgba(var(--acc), 1); }
