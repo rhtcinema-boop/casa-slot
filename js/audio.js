@@ -476,6 +476,43 @@ const Sfx = (function () {
       if (stage === 3) { timp(hz(r - 24), 0, 0.6, 0.5); timp(hz(r - 24), 0.36, 0.8, 0.5); }
     },
 
+    /* ---------- ポーカー小物・ステージ移行 ---------- */
+    crack(p) { // ガラスにヒビ
+      for (let i = 0; i < 5; i++) noise({ ft: 'highpass', f: rnd(3500, 7000), at: i * 0.025 + Math.random() * 0.03, d: 0.035, g: 0.28, pan: rnd(-0.8, 0.8) });
+      fm({ f: 2400 + (p || 0) * 900, f2: 900, d: 0.18, g: 0.12, ratio: 2.3, idx: 4, rev: 0.4 });
+      tone({ f: 140, f2: 70, d: 0.12, g: 0.5 });
+    },
+    shatter() { // ガラスが砕け散る
+      sub(0, 1.0, 1.0); kick(0, 1);
+      noise({ ft: 'highpass', f: 2500, d: 0.9, g: 0.6, rev: 0.5 });
+      noise({ f: 5200, q: 1.2, d: 0.6, g: 0.4 });
+      for (let i = 0; i < 26; i++) fm({ f: rnd(2200, 6000), at: 0.04 + Math.random() * 1.2, d: rnd(0.08, 0.3), g: rnd(0.03, 0.09), ratio: rnd(1.3, 3.1), idx: 3, pan: rnd(-0.9, 0.9), rev: 0.4 }); // 破片が落ちる音
+      crash(0, 2.2, 0.3);
+    },
+    deal() { // カードを配る
+      noise({ f: 1800, f2: 5200, q: 1.1, a: 0.05, d: 0.05, g: 0.22, pan: rnd(-0.5, 0.5) });
+      noise({ ft: 'lowpass', f: 900, at: 0.09, d: 0.03, g: 0.3 });
+    },
+    flip() { // カードをめくる
+      noise({ f: 3800, q: 1.5, d: 0.04, g: 0.26 });
+      tone({ type: 'triangle', f: 520, f2: 880, d: 0.07, g: 0.12 });
+    },
+    shuffle() { // シャッフル（パラパラ）
+      for (let i = 0; i < 14; i++) noise({ f: rnd(2600, 4200), q: 2, at: i * 0.028, d: 0.02, g: 0.12 + i * 0.006, pan: -0.8 + i * 0.12 });
+    },
+    chip() { // チップが当たる音
+      const f = rnd(2100, 3200);
+      fm({ f, d: 0.05, g: 0.09, ratio: 1.48, idx: 1.2, pan: rnd(-0.8, 0.8) });
+      noise({ f: 4200, q: 3, d: 0.015, g: 0.08 });
+    },
+    chipfall(dur) { // チップが大量に降る
+      const n = Math.round((dur || 1) * 22);
+      for (let i = 0; i < n; i++) {
+        const at = Math.random() * (dur || 1);
+        fm({ f: rnd(1900, 3400), at, d: 0.05, g: rnd(0.03, 0.08), ratio: 1.48, idx: 1.2, pan: rnd(-0.9, 0.9) });
+      }
+    },
+
     /* ---------- 確定・復活 ---------- */
     kyuin() {
       fm({ f: 500, f2: 3400, a: 0.16, d: 0.5, g: 0.2, ratio: 1.5, idx: 4, rev: 0.5, dly: 0.4 });
