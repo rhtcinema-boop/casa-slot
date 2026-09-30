@@ -433,9 +433,8 @@ const Sfx = (function () {
       clang(0, 0.1, 1.4);
       noise({ ft: 'lowpass', f: 200, d: 0.8, g: 0.5 });
     },
-    roll(dur) { // ドラムロール＋ティンパニ＋上昇するストリングス＋拍子木
+    roll(dur) { // ドラムロール＋ティンパニ＋上昇するストリングス
       const r = ROOT[stage];
-      SOUNDS.kan(Math.round(dur * 6));
       let t = 0, i = 0;
       while (t < dur) {
         const u = t / dur;
@@ -475,56 +474,6 @@ const Sfx = (function () {
       [0, 7, 12, 16].forEach((iv, i) => chime(hz(r + 12 + iv), i * 0.09, 0.8, 0.13, { pan: -0.5 + i * 0.3 }));
       pad([r, r + 7], 0, 0.2, 1.2, 0.03);
       if (stage === 3) { timp(hz(r - 24), 0, 0.6, 0.5); timp(hz(r - 24), 0.36, 0.8, 0.5); }
-    },
-
-    /* ---------- パチンコ風 ---------- */
-    yokoku(tier) { // 予告音: 色が上がるほど派手（1=青 2=緑 3=赤 4=金）
-      const r = ROOT[stage] + 24;
-      for (let i = 0; i <= tier; i++) tone({ type: 'square', f: hz(r + i * 4), f2: hz(r + i * 4 + 7), at: i * 0.07, d: 0.09, g: 0.1, lp: 6000, pan: i % 2 ? 0.4 : -0.4 });
-      if (tier >= 2) fm({ f: 700, f2: 2800, at: 0.05, a: 0.18, d: 0.2, g: 0.12, ratio: 1.5, idx: 3, dly: 0.3 });
-      if (tier >= 3) { hit([48, 60, 67, 72], 0, 0.08); SOUNDS.siren(1.1); }
-      if (tier >= 4) { crash(0, 1.6, 0.26); sparkle(0.1, 1.0, 96, 14); sub(0, 0.7, 0.9); }
-    },
-    siren(dur) { // パトランプのサイレン（ウーウー）
-      const n = Math.max(1, Math.round((dur || 1) / 0.36));
-      for (let i = 0; i < n; i++) {
-        tone({ type: 'sawtooth', f: 620, f2: 1180, at: i * 0.36, a: 0.17, d: 0.02, g: 0.09, lp: 2600 });
-        tone({ type: 'sawtooth', f: 1180, f2: 620, at: i * 0.36 + 0.18, a: 0.02, d: 0.16, g: 0.09, lp: 2600 });
-      }
-    },
-    reach(st) { // リーチ: ピロピロピロ → テンション音
-      const r = ROOT[stage] + 24;
-      for (let i = 0; i < 8; i++) tone({ type: 'square', f: hz(r + (i % 2 ? 7 : 0)), at: i * 0.055, d: 0.05, g: 0.1, lp: 6000, pan: i % 2 ? 0.5 : -0.5 });
-      tone({ type: 'square', f: hz(r + 12), at: 0.46, a: 0.02, d: 0.5, g: 0.1, lp: 5000, vib: 14, vibRate: 9, rev: 0.3 });
-      timp(hz(ROOT[stage] - 24), 0.46, 0.5, 0.5);
-      hat(0.46, 0.14);
-      if (st >= 3) { hit([40, 52, 59, 64], 0.46, 0.08); SOUNDS.siren(1.4); }
-    },
-    gashan() { // 役物落下（ガシャーン）
-      whoosh(0, 0.2, 0.3, false);
-      sub(0.2, 0.9, 1.0); kick(0.2, 1);
-      noise({ ft: 'lowpass', f: 5000, f2: 300, at: 0.2, d: 0.5, g: 0.8, rev: 0.4 });
-      clang(0.2, 0.14, 1.6); crash(0.2, 1.8, 0.32);
-      fm({ f: 180, at: 0.2, d: 1.0, g: 0.2, ratio: 2.7, idx: 5, rev: 0.5 });
-      clang(0.32, 0.06, 0.6);
-    },
-    kan(n) { // 拍子木（カン、カン、カカカカ…）
-      let t = 0;
-      for (let i = 0; i < (n || 8); i++) {
-        tone({ type: 'triangle', f: 1250, f2: 900, at: t, d: 0.06, g: 0.3, rev: 0.3, pan: i % 2 ? 0.3 : -0.3 });
-        noise({ f: 2200, q: 3, at: t, d: 0.02, g: 0.3 });
-        t += Math.max(0.06, 0.34 * Math.pow(0.78, i));
-      }
-    },
-    don() { // 和太鼓（ドドン）
-      [0, 0.16].forEach((at, i) => { tone({ f: 110, f2: 52, at, d: 0.45, g: i ? 1 : 0.8, rev: 0.4 }); noise({ ft: 'lowpass', f: 700, at, d: 0.06, g: 0.5 }); });
-    },
-    atari(L) { // 大当たりジングル（ピコピコの駆け上がり → 決め）
-      const run = [72, 76, 79, 84, 79, 84, 88, 91, 96];
-      run.forEach((m, i) => tone({ type: 'square', f: hz(m), at: i * 0.06, d: i === run.length - 1 ? 0.5 : 0.07, g: 0.1, lp: 6500, pan: -0.5 + i * 0.12, rev: i === run.length - 1 ? 0.4 : 0 }));
-      kick(0, 0.9); snare(0.24, 0.3); snare(0.36, 0.3); kick(0.48, 1); crash(0.48, 1.6, 0.28);
-      if (L >= 4) SOUNDS.siren(0.8);
-      SOUNDS.don();
     },
 
     /* ---------- 確定・復活 ---------- */
