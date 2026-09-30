@@ -534,8 +534,9 @@ const Game = (function () {
   }
 
   /* ステージ名の立体チップが、回転しながら奥から飛んできて叩きつけられる（約0.5秒）→ hold ミリ秒見せる */
-  async function stampStage(to, hold) {
+  async function stampStage(to, hold, rainbow) {
     const label = $('shutterLabel'), fin = to === 3;
+    label.classList.toggle('rainbow', !!rainbow); // 虹（当選確定）のときはチップも虹色
     label.querySelector('b').textContent = to;
     label.querySelector('em').textContent = STAGE_NAMES[to] || '';
     label.classList.remove('stamp', 'out'); void label.offsetWidth;
@@ -556,7 +557,7 @@ const Game = (function () {
     const label = $('shutterLabel');
     label.classList.add('out');
     await wait(220);
-    label.classList.remove('show', 'stamp', 'out');
+    label.classList.remove('show', 'stamp', 'out', 'rainbow');
     stageEl.classList.remove('named');
   }
 
@@ -585,23 +586,57 @@ const Game = (function () {
     delete stageEl.dataset.win;
   }
 
+  /* 金庫扉。枚数: 通常 1 枚 / STAGE 3 へは 3 枚 / 虹（当選確定）のときは 8 枚。
+     上下に閉まる扉と左右に閉まる扉を交互に重ね、1枚ずつ「ドン」と閉めて、逆順に1枚ずつ開ける。 */
+  const DOOR_RGB = {
+    rainbow: ['255,59,48', '255,149,0', '255,230,0', '52,227,106', '50,212,255', '58,107,255', '193,92,255', '255,255,255'],
+    fin: ['255,215,120', '255,255,255', '255,95,75'],
+  };
+  function buildDoors(n, colors) {
+    const box = $('doors');
+    box.innerHTML = '';
+    const layers = [];
+    for (let i = 0; i < n; i++) {
+      const horiz = (n - 1 - i) % 2 === 0; // いちばん手前の扉は必ず上下（継ぎ目の光と合わせる）
+      const pair = (horiz ? ['t', 'b'] : ['l', 'r']).map((side) => {
+        const d = document.createElement('div');
+        d.className = 'door ' + side;
+        if (colors) d.style.setProperty('--dc', colors[i % colors.length]);
+        box.appendChild(d);
+        return d;
+      });
+      layers.push({ pair, horiz });
+    }
+    return layers;
+  }
+  function seamSparks(horiz, colors) {
+    if (horiz) for (let x = 60; x <= 1540; x += 92) FX.burst(x, 450, 8, { max: 460, life: 0.8, size: 14, colors });
+    else for (let y = 30; y <= 870; y += 84) FX.burst(800, y, 8, { max: 460, life: 0.8, size: 14, colors });
+  }
   async function transVault(to) {
-    const fin = to === 3, colors = STAGE_COL[to];
+    const fin = to === 3, rb = pendingSure;
+    const colors = rb ? RAINBOW : STAGE_COL[to];
+    const n = rb ? 8 : fin ? 3 : 1;
+    const gap = n === 8 ? 170 : 300;
+    const layers = buildDoors(n, rb ? DOOR_RGB.rainbow : fin ? DOOR_RGB.fin : null);
     stageEl.classList.remove('opening', 'opening-slow', 'blast');
     stageEl.classList.toggle('fin', fin);
-    // 閉門（ぶつかった瞬間に画面が揺れ、継ぎ目を火花と稲妻が走る）
-    stageEl.classList.add('shut');
-    Sfx.play('shutterClose');
-    await wait(440);
-    quake();
-    flash(true);
-    FX.clear();
-    for (let x = 60; x <= 1540; x += 74) FX.burst(x, 450, 10, { max: 460, life: 0.9, size: 14, colors });
+    await frame();
+
+    // 閉門: 1枚ずつ叩きつける
+    for (let i = 0; i < n; i++) {
+      layers[i].pair.forEach((d) => d.classList.add('in'));
+      if (i === 0) { Sfx.play('shutterClose'); await wait(440); } else { await wait(gap - 40); Sfx.play('slam', i / (n - 1)); await wait(40); }
+      quake();
+      flash(true);
+      seamSparks(layers[i].horiz, rb ? [RAINBOW[i % RAINBOW.length], 'white'] : colors);
+    }
     FX.lightning(0, 450, 800, 450, 'white', 4); FX.lightning(1600, 450, 800, 450, 'white', 4);
     setStage(to);
     FX.setAmbient(0);
     stageEl.classList.add('ceremony');
-    await stampStage(to, 300);
+    await stampStage(to, 300, rb);
+
     // 溜め（約2秒）: ドラムロール。継ぎ目の光が速く脈打ち、光が扉へ吸い込まれていく
     const roll = 1.9;
     Sfx.play('roll', roll);
@@ -614,15 +649,24 @@ const Game = (function () {
     await wait(roll * 1000);
     tm.forEach(clearTimeout);
     stageEl.classList.remove('rolling');
-    // 開門
+
+    // 開門: 手前の扉から1枚ずつ弾けるように開く
     await hideStamp();
     stageEl.classList.add('blast');
+    stageEl.classList.remove('ceremony');
+    for (let i = n - 1; i >= 1; i--) {
+      layers[i].pair.forEach((d) => { d.classList.add('opening'); d.classList.remove('in'); });
+      Sfx.play('slam', (n - 1 - i) / (n - 1));
+      flash(true);
+      quake();
+      seamSparks(layers[i].horiz, rb ? [RAINBOW[i % RAINBOW.length], 'white'] : colors);
+      await wait(gap);
+    }
+    layers[0].pair.forEach((d) => { d.classList.add('opening'); d.classList.remove('in'); });
     flash(false);
     quake();
-    stageEl.classList.add('opening-slow');
-    stageEl.classList.remove('shut', 'ceremony');
     await arrive(to, false);
-    setTimeout(() => stageEl.classList.remove('opening-slow', 'blast'), 700);
+    setTimeout(() => { stageEl.classList.remove('blast'); $('doors').innerHTML = ''; }, 700);
   }
 
   /* 次のプレイへ戻るときの短いシャッター */
