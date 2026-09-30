@@ -9,7 +9,8 @@ const FX = (function () {
   let lastRaf = 0;
   /* 軽量化: 1フレームにかかった時間の平均を見て、重い端末では粒子数を自動で減らす。総数にも上限を設ける。 */
   let Q = 0.75, avgMs = 16;
-  const MAX_PARTS = 360;
+  const MAX_PARTS = 200;
+  const RES = 0.5; // 描画面の解像度（0.5 = 画素数は4分の1）。CSS で拡大表示する
   const qn = (n) => (parts.length > MAX_PARTS ? 0 : Math.max(1, Math.round(n * Q)));
   const sprites = {};
   const COLORS = { gold: [255, 205, 96], white: [255, 246, 220], silver: [214, 226, 240], red: [255, 80, 70], blue: [70, 140, 255], cyan: [120, 225, 255], violet: [185, 120, 255], orange: [255, 150, 50], yellow: [255, 235, 80], green: [90, 240, 120] };
@@ -33,6 +34,7 @@ const FX = (function () {
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
   function kick() {
+    if (!enabled) { parts = []; rings = []; lines = []; bolts = []; return; }
     if (!raf) { last = lastRaf = performance.now(); raf = requestAnimationFrame(loop); }
   }
 
@@ -69,11 +71,10 @@ const FX = (function () {
     kick();
   }
   /* 常時ただよう光の粒。rate は 1秒あたりの発生数（0で停止）。 */
-  function setAmbient(rate, colors) {
-    ambient = rate;
-    setAmbient.colors = colors || ['gold'];
-    if (rate > 0) kick();
-  }
+  /* 待機中に漂う光の粒は廃止（待機中は描画ループを完全に止める）。呼び出し側との互換のため関数だけ残す */
+  function setAmbient() { ambient = 0; }
+  let enabled = true;
+  function setEnabled(on) { enabled = on; if (!on) { parts = []; rings = []; lines = []; bolts = []; } }
   function clear() { parts = []; rings = []; lines = []; bolts = []; heights = new Array(COLS).fill(0); }
   /* 集中線。inward: 外から中心へ / それ以外: 中心から外へ飛ぶ */
   function streaks(x, y, n, dur, o) {
@@ -229,6 +230,7 @@ const FX = (function () {
         parts.push({ t: 0, life: rnd(3, 6), x: rnd(0, CW), y: rnd(200, 1050) , vx: rnd(-12, 12), vy: rnd(-46, -14), g: 0, drag: 0, size: rnd(4, 12), c: pick(setAmbient.colors), tw: Math.random() * 6, amb: true });
       }
     }
+    ctx.setTransform(RES, 0, 0, RES, 0, 0);
     ctx.clearRect(0, 0, CW, CHT);
     ctx.globalCompositeOperation = 'lighter';
     for (let i = parts.length - 1; i >= 0; i--) {
@@ -360,9 +362,9 @@ const FX = (function () {
 
   function init(canvas) {
     cv = canvas;
-    cv.width = CW; cv.height = CHT;
+    cv.width = CW * RES; cv.height = CHT * RES;
     ctx = cv.getContext('2d');
   }
 
-  return { init, burst, converge, rain, ring, setAmbient, clear, streaks, lightning, fountain, flakes, chips, chipFountain, releasePile, setGround, cards, setTimeScale };
+  return { init, burst, converge, rain, ring, setAmbient, clear, streaks, lightning, fountain, flakes, chips, chipFountain, releasePile, setGround, cards, setTimeScale, setEnabled };
 })();
