@@ -594,46 +594,7 @@ input[type=range].vol { width: 380px; height: 44px; accent-color: #e9c25e; touch
 #rotate { position: absolute; inset: 0; display: none; place-items: center; background: #050506; color: #e9c25e; font: 600 20px var(--font-ui); letter-spacing: .1em; text-align: center; }
 #ver { position: absolute; right: 18px; bottom: 12px; font: 600 15px var(--font-ui); color: #6d6552; letter-spacing: .1em; }
 
-/* ==========================================================
-   パチンコ風演出（カットイン帯・役物落下・パトランプ・集中線）
-   すべて transform / opacity だけで動かし、処理を軽く保つ
-   ========================================================== */
-#cutin { position: absolute; left: -12%; width: 124%; top: 50%; height: 250px; margin-top: -125px; z-index: 3; pointer-events: none; overflow: hidden; opacity: 0;
-  display: grid; place-items: center; transform: rotate(-6deg) translateX(112%); will-change: transform;
-  box-shadow: 0 0 0 6px #000, 0 0 0 12px #fff, 0 0 0 18px #000, 0 30px 80px rgba(0, 0, 0, .8); }
-#cutin::before { content: ""; position: absolute; top: 0; bottom: 0; left: -200px; right: -200px; background: repeating-linear-gradient(100deg, rgba(0, 0, 0, .28) 0 46px, transparent 46px 92px); animation: stripes .35s linear infinite; will-change: transform; }
-@keyframes stripes { to { transform: translateX(-92px); } }
-#cutin b { position: relative; font: 900 176px/1 "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; font-style: italic; letter-spacing: .04em; white-space: nowrap; color: #fff;
-  -webkit-text-stroke: 12px #000; paint-order: stroke fill; text-shadow: 0 10px 0 rgba(0, 0, 0, .6); }
-#cutin.go { animation: cutin 1.3s cubic-bezier(.2, .9, .2, 1) both; }
-#cutin.go b { animation: cut-text 1.3s both; }
-@keyframes cutin { 0% { opacity: 1; transform: rotate(-6deg) translateX(112%); } 13% { transform: rotate(-6deg) translateX(0); } 80% { opacity: 1; transform: rotate(-6deg) translateX(0); } 100% { opacity: 1; transform: rotate(-6deg) translateX(-114%); } }
-@keyframes cut-text { 0%, 12% { transform: scale(2.6); opacity: 0; } 24% { transform: scale(.92); opacity: 1; } 32%, 100% { transform: scale(1); opacity: 1; } }
-#cutin.t-blue { background: linear-gradient(180deg, #4fa3ff, #1b5fd6 45%, #0a2a7a); }
-#cutin.t-green { background: linear-gradient(180deg, #6df09a, #19b35a 45%, #0a5a2a); }
-#cutin.t-red { background: linear-gradient(180deg, #ff7a5c, #e0261c 45%, #7a0a06); }
-#cutin.t-red b { color: #fff36b; }
-#cutin.t-gold { background: linear-gradient(180deg, #fff8d6, #f6d571 30%, #c8922e 55%, #8f5f14 60%, #e9c25e 80%, #fff1b8); }
-#cutin.t-gold b { color: #e0261c; -webkit-text-stroke-color: #fff; text-shadow: 0 0 0 #000, 0 10px 0 rgba(0, 0, 0, .5); }
-#cutin.t-white { background: linear-gradient(180deg, #ffffff, #ffe1dc 60%, #ff9d8c); }
-#cutin.t-white b { color: #e0261c; }
-#cutin.t-stage { background: linear-gradient(180deg, #fff, var(--accent) 35%, var(--accent-dim)); }
-#cutin.t-rainbow { background: linear-gradient(90deg, #ff3b30, #ff9500, #ffe600, #34e36a, #32d4ff, #3a6bff, #c15cff, #ff3b30); }
-#cutin.t-rainbow b { color: #fff; }
-
-#yaku { position: absolute; left: 50%; top: 50%; width: 500px; height: 572px; margin: -286px 0 0 -250px; z-index: 3; pointer-events: none; opacity: 0; transform: translateY(-1200px); will-change: transform; }
-#yaku::before { content: ""; position: absolute; left: 50%; top: 50%; width: 900px; height: 900px; margin: -450px 0 0 -450px; border-radius: 50%; background: radial-gradient(circle, rgba(var(--acc), .85), rgba(var(--acc), .3) 40%, transparent 68%); }
-#yaku i { position: absolute; inset: 0; background: linear-gradient(180deg, #ffffff, #fff1b8 30%, #f0c04c 60%, #fff8d6); -webkit-mask: url(../logo-emblem.png) center / contain no-repeat; mask: url(../logo-emblem.png) center / contain no-repeat; }
-#yaku.go { animation: yaku 1.5s both; }
-@keyframes yaku { 0% { opacity: 1; transform: translateY(-1200px); animation-timing-function: cubic-bezier(.6, 0, 1, .7); } 15% { transform: translateY(0); } 21% { transform: translateY(-46px); } 27% { transform: translateY(0); } 31% { transform: translateY(-12px); } 35%, 74% { opacity: 1; transform: translateY(0); } 100% { opacity: 1; transform: translateY(-1200px); } }
-
-.beacon { position: absolute; top: -170px; width: 640px; height: 640px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity .2s; will-change: transform;
-  background: conic-gradient(from 0deg, rgba(255, 40, 30, .8) 0deg 40deg, transparent 62deg 180deg, rgba(255, 40, 30, .8) 180deg 220deg, transparent 242deg 360deg);
-  -webkit-mask-image: radial-gradient(circle, #000 0, transparent 66%); mask-image: radial-gradient(circle, #000 0, transparent 66%); }
-.beacon.l { left: -220px; } .beacon.r { right: -220px; }
-#stage.patlamp .beacon { opacity: 1; animation: rotate .55s linear infinite; }
-#stage.patlamp .beacon.r { animation-direction: reverse; }
-
+/* 停止直前の集中線（transform だけで動かす） */
 .speedlines { position: absolute; left: 0; top: 0; width: 200%; height: 100%; pointer-events: none; opacity: 0; transition: opacity .25s; will-change: transform;
   background: repeating-linear-gradient(180deg, transparent 0 22px, rgba(var(--acc), .16) 22px 25px, transparent 25px 61px, rgba(255, 255, 255, .12) 61px 63px, transparent 63px 97px); }
 #stage.reach .speedlines { opacity: 1; animation: speed .22s linear infinite; }
