@@ -526,16 +526,10 @@ const Game = (function () {
   const frame = () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
   function mk(cls, html) { const d = document.createElement('div'); d.className = cls; if (html) d.innerHTML = html; $('trans').appendChild(d); return d; }
 
-  /* ステージ移行のパターン（ランダム）:
-       shatter … 画面のガラスにヒビが入り、破片がカメラへ向かって砕け散る
-       vault   … 金庫扉が閉まり、立体チップが叩きつけられ、開く */
-  const TRANS = { shatter: transShatter, vault: transVault };
+  /* ステージ移行: 金庫扉が閉まり、立体チップ（ステージ名）が叩きつけられ、ドラムロールのあと開く */
   async function stageTransition(to) {
-    const names = Object.keys(TRANS);
-    let p = window.__fxTest && window.__fxTest.trans;
-    if (!TRANS[p]) p = names[Math.floor(Math.random() * names.length)];
     $('trans').innerHTML = '';
-    await TRANS[p](to);
+    await transVault(to);
     $('trans').innerHTML = '';
   }
 
@@ -589,91 +583,6 @@ const Game = (function () {
     content.classList.remove('reveal');
     stageEl.classList.remove('fin');
     delete stageEl.dataset.win;
-  }
-
-  /* ---- ガラス ----
-     中心から放射状に三角形の破片を敷き詰める。ヒビは破片の辺に沿って段階的に現れる。 */
-  function glass() {
-    const T = $('trans'), W = 1600, H = stageH, cx = 770, cy = H / 2 - 30, N = 8;
-    const ang = [];
-    for (let i = 0; i < N; i++) ang.push(((i + Math.random() * 0.55) / N) * Math.PI * 2);
-    const ringPts = (r, sq) => ang.map((a) => { const k = 0.8 + Math.random() * 0.4; return [cx + Math.cos(a) * r * k, cy + Math.sin(a) * r * sq * k]; });
-    const r1 = ringPts(260, 0.78), r3 = ang.map((a) => [cx + Math.cos(a) * 2000, cy + Math.sin(a) * 2000]);
-    const tris = [];
-    for (let i = 0; i < N; i++) {
-      const j = (i + 1) % N;
-      tris.push({ p: [[cx, cy], r1[i], r1[j]], ring: 0 });
-      tris.push({ p: [r1[i], r3[i], r3[j]], ring: 1 }, { p: [r1[i], r3[j], r1[j]], ring: 1 });
-    }
-    const shards = tris.map((t) => {
-      const xs = t.p.map((q) => q[0]), ys = t.p.map((q) => q[1]);
-      const l = Math.max(-20, Math.min.apply(null, xs)), tp = Math.max(-20, Math.min.apply(null, ys));
-      const r = Math.min(W + 20, Math.max.apply(null, xs)), b = Math.min(H + 20, Math.max.apply(null, ys));
-      const el = mk('shard');
-      const mx = Math.max(l, Math.min(r, (xs[0] + xs[1] + xs[2]) / 3)), my = Math.max(tp, Math.min(b, (ys[0] + ys[1] + ys[2]) / 3));
-      el.style.cssText = 'left:' + l + 'px;top:' + tp + 'px;width:' + (r - l) + 'px;height:' + (b - tp) + 'px;' +
-        'transform-origin:' + (mx - l) + 'px ' + (my - tp) + 'px;';
-      const poly = 'polygon(' + t.p.map((q) => (q[0] - l).toFixed(1) + 'px ' + (q[1] - tp).toFixed(1) + 'px').join(',') + ')';
-      el.style.clipPath = poly; el.style.webkitClipPath = poly;
-      const a = Math.floor(Math.random() * 360);
-      el.style.background = 'linear-gradient(' + a + 'deg, rgba(255,255,255,' + (0.18 + Math.random() * 0.3).toFixed(2) + '), rgba(var(--acc),' + (0.1 + Math.random() * 0.2).toFixed(2) + ') 45%, rgba(255,255,255,.04))';
-      return { el, mx, my, ring: t.ring };
-    });
-    // ヒビ（SVG）
-    const seg = (a, b) => 'M' + a[0].toFixed(1) + ' ' + a[1].toFixed(1) + 'L' + b[0].toFixed(1) + ' ' + b[1].toFixed(1);
-    const d = ['', '', ''];
-    for (let i = 0; i < N; i++) {
-      const j = (i + 1) % N;
-      d[0] += seg([cx, cy], r1[i]) + seg(r1[i], r1[j]);
-      d[1] += seg(r1[i], r3[i]);
-      d[2] += seg(r1[i], r3[j]);
-    }
-    const svg = mk('', '<svg class="cracks" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' + d.map((x) => '<path d="' + x + '"/>').join('') + '</svg>');
-    const paths = svg.querySelectorAll('path');
-    return {
-      cx, cy,
-      crack(i) { if (paths[i]) paths[i].classList.add('on'); },
-      light() { shards.forEach((s) => s.el.classList.add('lit')); },
-      burst() { // 破片が外へ飛び散りながら落ちる
-        svg.remove();
-        shards.forEach((s) => {
-          const dx = s.mx - cx, dy = s.my - cy, L = Math.hypot(dx, dy) || 1, far = 500 + Math.random() * 700;
-          const dur = 0.7 + Math.random() * 0.5, delay = s.ring * 0.04 + Math.random() * 0.06;
-          s.el.style.transition = 'transform ' + dur + 's cubic-bezier(.7,0,.84,0) ' + delay + 's, opacity ' + (dur * 0.5) + 's ease-in ' + (delay + dur * 0.5) + 's';
-          s.el.style.transform = 'translate3d(' + ((dx / L) * far).toFixed(0) + 'px,' + ((dy / L) * far + 260).toFixed(0) + 'px,' + (150 + Math.random() * 500).toFixed(0) + 'px) rotate3d(' + Math.random().toFixed(2) + ',' + Math.random().toFixed(2) + ',' + Math.random().toFixed(2) + ',' + (200 + Math.random() * 500).toFixed(0) + 'deg) scale(.7)';
-          s.el.style.opacity = 0;
-        });
-      },
-    };
-  }
-  /* ヒビ（3段階）→ 粉砕。粉砕の瞬間にステージが切り替わる。 */
-  async function breakGlass(to) {
-    const fin = to === 3, g = glass();
-    await frame();
-    for (let i = 0; i < 3; i++) {
-      g.crack(i);
-      Sfx.play('crack', i / 2);
-      restart(cabinet, 'thud'); bump();
-      flash(true);
-      FX.burst(g.cx, g.cy, 40 + i * 30, { max: 500 + i * 300, life: 0.7, size: 12, colors: ['white', 'silver'] });
-      if (fin && i === 2) { Sfx.play('thunder'); FX.lightning(rnd(200, 1400), -80, g.cx, 450, 'red', 5); }
-      await wait([220, 170, 130][i]); // ヒビの間隔もだんだん詰まる
-    }
-    g.light();
-    await wait(110);
-    Sfx.play('shatter');
-    flash(false);
-    quake();
-    setStage(to);
-    g.burst();
-    FX.burst(CX, CY, 260, { max: 1800, life: 1.4, size: 16, colors: ['white', 'silver', 'white'] });
-    FX.streaks(CX, CY, 140, 0.5, { colors: ['white', 'silver'] });
-    bulletTime(0.14, 0.45); // 破片が宙で止まり、指数的に加速して飛び去る
-  }
-
-  async function transShatter(to) {
-    await breakGlass(to);
-    await arrive(to, true);
   }
 
   async function transVault(to) {
