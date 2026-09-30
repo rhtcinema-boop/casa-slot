@@ -24,17 +24,21 @@ const Reel = (function () {
     3: { speed: 34, cruise: [1.6, 2.1], decel: 4.6, pause: 1.3, tease: 1 },
   };
   const LINE_RGB = { 1: '233,194,94', 2: '110,200,255', 3: '255,110,90' }; // コマ境界線の色
-  const NUM_FONT = '"Bodoni 72","Bodoni 72 Oldstyle","Didot","Bodoni MT","Times New Roman",serif';
-  const LBL_FONT = '"Copperplate","Copperplate Gothic Bold","Cinzel","Trajan Pro","Times New Roman",serif';
+  // 極太書体（iPad 標準搭載の Impact）。数字もラベルも同じ書体でそろえる
+  const NUM_FONT = 'Impact,"Haettenschweiler","Arial Narrow Bold","Arial Black",sans-serif';
+  const LBL_FONT = NUM_FONT;
+  /* 彫金クロームの配色。face: 文字の面（上半分=空の映り込み / 中央の暗い水平線 / 下半分=地面の照り返し）
+     ext: 側面の厚み [奥, 手前] / rim: 縁のハイライト */
+  const STOPS = [0, 0.18, 0.38, 0.49, 0.51, 0.58, 0.78, 1];
   const PAL = {
-    gold: { grad: ['#fff8d6', '#f6d571', '#c8922e', '#8f5f14', '#e9c25e', '#fff1b8'], ext: '#3b2505', edge: '#1a0f02', hi: 'rgba(255,250,220,.75)', glow: null },
-    rich: { grad: ['#ffffff', '#ffe68a', '#e0a62f', '#9a6510', '#ffd76a', '#fff8d8'], ext: '#4a2c04', edge: '#1a0f02', hi: 'rgba(255,255,240,.9)', glow: 'rgba(255,200,80,.55)' },
-    silver: { grad: ['#ffffff', '#d5dbe2', '#8d97a4', '#4c545f', '#b7c0ca', '#f4f7fa'], ext: '#1d2126', edge: '#08090b', hi: 'rgba(255,255,255,.7)', glow: null },
+    gold: { face: ['#fffef5', '#ffe9a3', '#f2c34f', '#b07a1a', '#5a3706', '#a86f18', '#f0c65a', '#fff3c4'], ext: ['#1c1002', '#a87a1e'], edge: '#0d0700', rim: '#fff3c4', glow: null },
+    rich: { face: ['#ffffff', '#fff2b8', '#ffd04f', '#c48a1a', '#6a4206', '#c08418', '#ffd76a', '#fffbe6'], ext: ['#241403', '#c8922e'], edge: '#0d0700', rim: '#ffffff', glow: 'rgba(255,205,90,.6)' },
+    silver: { face: ['#ffffff', '#e6ebf0', '#aeb8c4', '#5d6874', '#1c2128', '#56606c', '#b6c0cb', '#f4f7fa'], ext: ['#0c0e11', '#6a7480'], edge: '#050607', rim: '#ffffff', glow: null },
     // NEXT STAGE は「次のステージの色」で描く（STAGE 1 では青、STAGE 2 では赤）
-    nextBlue: { grad: ['#ffffff', '#c9ecff', '#4fa8f0', '#1a5aa6', '#8fd4ff', '#ffffff'], ext: '#0a2a52', edge: '#030d1c', hi: 'rgba(255,255,255,.95)', glow: 'rgba(90,180,255,.75)' },
-    nextRed: { grad: ['#ffffff', '#ffd6c8', '#ff5a44', '#a3160f', '#ff9a80', '#fff3ea'], ext: '#4a0a06', edge: '#1a0302', hi: 'rgba(255,255,255,.95)', glow: 'rgba(255,80,50,.8)' },
-    next: { grad: ['#ffffff', '#fff3c0', '#f0c04c', '#b37a18', '#ffe9a0', '#ffffff'], ext: '#4a2c04', edge: '#140b01', hi: 'rgba(255,255,255,.95)', glow: 'rgba(255,225,140,.7)' },
+    nextBlue: { face: ['#ffffff', '#d2efff', '#6cbcf5', '#1f66b0', '#06224a', '#1d5ea6', '#79c6f7', '#e6f6ff'], ext: ['#030d1c', '#2f7fd0'], edge: '#020810', rim: '#ffffff', glow: 'rgba(90,180,255,.8)' },
+    nextRed: { face: ['#ffffff', '#ffdcd0', '#ff7a62', '#b3261a', '#3d0604', '#a8221a', '#ff8e76', '#ffe9e0'], ext: ['#1a0302', '#d0402c'], edge: '#0d0101', rim: '#ffffff', glow: 'rgba(255,80,50,.85)' },
   };
+  PAL.next = PAL.nextBlue;
 
   let cv, ctx, stage = 1, strip = STRIPS[1], pos = 0, raf = 0;
   const imgs = {};
@@ -45,30 +49,51 @@ const Reel = (function () {
   const symAt = (i) => (ov[i] !== undefined ? ov[i] : strip[mod(i, strip.length)]);
   const fmt = (v) => Number(v).toLocaleString('en-US');
 
-  function metalText(c, text, cx, cy, px, font, pal, maxW) {
-    c.font = '700 ' + px + 'px ' + font;
-    c.textAlign = 'center';
-    c.textBaseline = 'alphabetic';
-    let w = c.measureText(text).width;
-    if (w > maxW) { px = Math.floor(px * maxW / w); c.font = '700 ' + px + 'px ' + font; }
+  let faceCv = null;
+  const mix = (a, b, t) => {
+    const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    const ch = (s) => Math.round(((pa >> s) & 255) + (((pb >> s) & 255) - ((pa >> s) & 255)) * t);
+    return 'rgb(' + ch(16) + ',' + ch(8) + ',' + ch(0) + ')';
+  };
+  /* 彫金クロームの文字を描く:
+     落ち影 → 側面の厚み（奥ほど暗い）→ 黒い縁 → 明るい縁 → 面（2段の映り込み）→ 内側の面取り → 斜めの光沢 */
+  function metalText(c, text, cx, cy, px, font, pal, maxW, italic) {
+    const setFont = (k) => { k.font = (italic ? 'italic ' : '') + '400 ' + px + 'px ' + font; k.textAlign = 'center'; k.textBaseline = 'alphabetic'; k.lineJoin = 'round'; };
+    setFont(c);
+    const w0 = c.measureText(text).width;
+    if (w0 > maxW) { px = Math.floor(px * maxW / w0); setFont(c); }
     const m = c.measureText(text);
-    const asc = m.actualBoundingBoxAscent || px * 0.7, desc = m.actualBoundingBoxDescent || 0;
-    const y = cy + (asc - desc) / 2; // 実際の字面で上下中央に合わせる
-    const depth = Math.max(3, Math.round(px * 0.045));
-    c.lineJoin = 'round';
-    if (pal.glow) { c.save(); c.shadowColor = pal.glow; c.shadowBlur = px * 0.22; c.fillStyle = pal.glow; c.fillText(text, cx, y); c.restore(); }
-    // 影 → 押し出し（立体感）→ 縁 → 金属グラデーション → ハイライト
-    c.save(); c.shadowColor = 'rgba(0,0,0,.85)'; c.shadowBlur = 14; c.shadowOffsetY = depth + 6; c.fillStyle = pal.edge; c.fillText(text, cx, y + depth); c.restore();
-    c.lineWidth = px * 0.075; c.strokeStyle = pal.edge;
-    for (let i = depth; i > 0; i--) { c.strokeText(text, cx, y + i); }
-    c.fillStyle = pal.ext;
-    for (let i = depth; i > 0; i--) c.fillText(text, cx, y + i);
-    c.strokeText(text, cx, y);
-    const g = c.createLinearGradient(0, y - asc, 0, y + desc);
-    g.addColorStop(0, pal.grad[0]); g.addColorStop(0.28, pal.grad[1]); g.addColorStop(0.5, pal.grad[2]);
-    g.addColorStop(0.53, pal.grad[3]); g.addColorStop(0.72, pal.grad[4]); g.addColorStop(1, pal.grad[5]);
-    c.fillStyle = g; c.fillText(text, cx, y);
-    c.lineWidth = 1.5; c.strokeStyle = pal.hi; c.strokeText(text, cx, y - 1);
+    const asc = m.actualBoundingBoxAscent || px * 0.75, desc = m.actualBoundingBoxDescent || 0;
+    const y = cy + (asc - desc) / 2;
+    const depth = Math.max(5, Math.round(px * 0.075));
+    if (pal.glow) { c.save(); c.shadowColor = pal.glow; c.shadowBlur = px * 0.25; c.fillStyle = pal.glow; c.fillText(text, cx, y); c.restore(); }
+    c.save(); c.shadowColor = 'rgba(0,0,0,.9)'; c.shadowBlur = 16; c.shadowOffsetY = depth + 8; c.fillStyle = pal.edge; c.fillText(text, cx, y + depth); c.restore();
+    c.lineWidth = px * 0.06;
+    for (let i = depth; i >= 1; i--) { // 側面
+      const col = mix(pal.ext[0], pal.ext[1], 1 - i / depth);
+      c.strokeStyle = col; c.fillStyle = col;
+      c.strokeText(text, cx, y + i); c.fillText(text, cx, y + i);
+    }
+    c.lineWidth = px * 0.1; c.strokeStyle = pal.edge; c.strokeText(text, cx, y);
+    c.lineWidth = px * 0.035; c.strokeStyle = pal.rim; c.strokeText(text, cx, y);
+    // 面は別キャンバスで作り、文字の内側だけに面取りと光沢を重ねる
+    if (!faceCv) { faceCv = document.createElement('canvas'); faceCv.width = SW * S; faceCv.height = CH * S; }
+    const o = faceCv.getContext('2d');
+    o.setTransform(1, 0, 0, 1, 0, 0); o.globalCompositeOperation = 'source-over'; o.clearRect(0, 0, faceCv.width, faceCv.height);
+    o.setTransform(S, 0, 0, S, 0, 0);
+    setFont(o);
+    const g = o.createLinearGradient(0, y - asc, 0, y + desc);
+    STOPS.forEach((s, i) => g.addColorStop(s, pal.face[i]));
+    o.fillStyle = g; o.fillText(text, cx, y);
+    o.globalCompositeOperation = 'source-atop';
+    o.lineWidth = px * 0.04;
+    o.strokeStyle = 'rgba(255,255,255,.95)'; o.strokeText(text, cx - px * 0.012, y - px * 0.022); // 左上の面取り（光）
+    o.strokeStyle = 'rgba(0,0,0,.5)'; o.strokeText(text, cx + px * 0.012, y + px * 0.024);       // 右下の面取り（影）
+    const sg = o.createLinearGradient(cx - px, y - asc, cx + px, y + desc); // 斜めに走る光沢
+    sg.addColorStop(0.3, 'rgba(255,255,255,0)'); sg.addColorStop(0.36, 'rgba(255,255,255,.55)'); sg.addColorStop(0.41, 'rgba(255,255,255,0)');
+    sg.addColorStop(0.62, 'rgba(255,255,255,0)'); sg.addColorStop(0.66, 'rgba(255,255,255,.3)'); sg.addColorStop(0.7, 'rgba(255,255,255,0)');
+    o.fillStyle = sg; o.fillRect(0, y - asc - 10, SW, asc + desc + 20);
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(faceCv, 0, 0); c.restore();
   }
 
   function chevrons(c, cx, cy, dir, pal) {
@@ -78,7 +103,7 @@ const Reel = (function () {
       c.moveTo(x - dir * 12, cy - 34); c.lineTo(x + dir * 12, cy); c.lineTo(x - dir * 12, cy + 34);
       c.lineWidth = 9; c.lineCap = 'round'; c.lineJoin = 'round';
       c.strokeStyle = pal.edge; c.stroke();
-      c.lineWidth = 5; c.strokeStyle = pal.grad[i === 2 ? 0 : 1]; c.globalAlpha = 0.45 + i * 0.27; c.stroke();
+      c.lineWidth = 5; c.strokeStyle = pal.face[i === 2 ? 0 : 2]; c.globalAlpha = 0.45 + i * 0.27; c.stroke();
       c.globalAlpha = 1;
     }
   }
@@ -89,13 +114,13 @@ const Reel = (function () {
     const x = c.getContext('2d');
     x.scale(S, S);
     if (sym === 'NEXT') {
-      metalText(x, 'NEXT', SW / 2, CH / 2 - 44, 92, LBL_FONT, nextPal || PAL.next, 420);
-      metalText(x, 'STAGE', SW / 2, CH / 2 + 46, 92, LBL_FONT, nextPal || PAL.next, 420);
+      metalText(x, 'NEXT', SW / 2, CH / 2 - 47, 100, LBL_FONT, nextPal || PAL.next, 440, true);
+      metalText(x, 'STAGE', SW / 2, CH / 2 + 49, 100, LBL_FONT, nextPal || PAL.next, 440, true);
       chevrons(x, 66, CH / 2, 1, nextPal || PAL.next);
       chevrons(x, SW - 66, CH / 2, -1, nextPal || PAL.next);
     } else {
       const pal = sym === 0 ? PAL.silver : sym >= 10000 ? PAL.rich : PAL.gold;
-      metalText(x, fmt(sym), SW / 2, CH / 2, 178, NUM_FONT, pal, 600);
+      metalText(x, fmt(sym), SW / 2, CH / 2, 190, NUM_FONT, pal, 600);
     }
     return c;
   }
