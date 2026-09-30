@@ -113,7 +113,10 @@ const Reel = (function () {
     c.width = SW * S; c.height = CH * S;
     const x = c.getContext('2d');
     x.scale(S, S);
-    if (sym === 'NEXT') {
+    if (sym === 'PULL') { // レバー待ちの案内（金額を見せない）
+      metalText(x, 'PULL', SW / 2, CH / 2 - 34, 132, LBL_FONT, nextPal || PAL.gold, 520, true);
+      metalText(x, 'THE LEVER', SW / 2, CH / 2 + 62, 62, LBL_FONT, nextPal || PAL.gold, 520, true);
+    } else if (sym === 'NEXT') {
       metalText(x, 'NEXT', SW / 2, CH / 2 - 47, 100, LBL_FONT, nextPal || PAL.next, 440, true);
       metalText(x, 'STAGE', SW / 2, CH / 2 + 49, 100, LBL_FONT, nextPal || PAL.next, 440, true);
       chevrons(x, 66, CH / 2, 1, nextPal || PAL.next);
@@ -138,6 +141,10 @@ const Reel = (function () {
     return c;
   }
   function build() {
+    [PAL.gold, PAL.nextBlue, PAL.nextRed].forEach((pal, i) => {
+      const sharp = renderSharp('PULL', pal);
+      imgs['PULL@' + (i + 1)] = { sharp, mid: renderBlur(sharp, 20, 9), heavy: renderBlur(sharp, 70, 19) };
+    });
     const seen = {};
     Object.keys(STRIPS).forEach((k) => STRIPS[k].forEach((sym) => {
       const key = sym === 'NEXT' ? 'NEXT@' + k : sym;
@@ -172,7 +179,8 @@ const Reel = (function () {
       const y = H / 2 + d * CH;
       const k = 1 - 0.1 * Math.min(1, d * d); // ドラム曲面の擬似遠近
       const sy = symAt(i);
-      const im = imgs[sy === 'NEXT' ? 'NEXT@' + stage : sy];
+      if (sy === 'BLANK') continue;
+      const im = imgs[sy === 'NEXT' || sy === 'PULL' ? sy + '@' + stage : sy];
       drawLayer(im.heavy, true, y, k, aH * 0.92);
       drawLayer(im.mid, true, y, k, aM);
       drawLayer(im.sharp, false, y, k, aS);
@@ -191,6 +199,13 @@ const Reel = (function () {
   /* ---------- 運動プロファイル ---------- */
   // 速度 v0→v1 の区間。k あり: v = v1+(v0-v1)(1-u)^k（ブレーキ的減速）/ なし: smoothstep
   function segDist(s, u) {
+    if (s.e) { // 指数関数的に減速: 最初に一気に落ち、長く尾を引く
+      const q = Math.exp(-s.e);
+      return s.d * (s.v1 * u + ((s.v0 - s.v1) / (1 - q)) * ((1 - Math.exp(-s.e * u)) / s.e - q * u));
+    }
+    if (s.g) { // 指数関数的に加速: じわっと動き出して一気に最高速へ
+      return s.d * (s.v0 * u + ((s.v1 - s.v0) / (Math.exp(s.g) - 1)) * ((Math.exp(s.g * u) - 1) / s.g - u));
+    }
     if (s.k) return s.d * (s.v1 * u + (s.v0 - s.v1) * (1 - Math.pow(1 - u, s.k + 1)) / (s.k + 1));
     return s.d * (s.v0 * u + (s.v1 - s.v0) * (u * u * u - (u * u * u * u) / 2));
   }
@@ -212,7 +227,8 @@ const Reel = (function () {
     const vW = (AW * Math.PI) / TW;
     const vP = 0.2, vPk = 1.55, vL = 1.15;     // 止まりかけ速度 / 倒れ込み最高速 / デテントに落ちる速度
     let vEnd = vL, teaseIdx = -1;
-    const accel = seg(0.42, vW, V);
+    const accel = { d: 0.6, v0: vW, v1: V, g: 3.4 };
+    const decay = (d, v0, v1, e) => ({ d, v0, v1, e });
     const tail = [];
     // 止まりかけ(vP)から dist セルを倒れ込み、速度 vOut で抜ける
     const tip = (dist, vOut) => {
@@ -220,21 +236,21 @@ const Reel = (function () {
       tail.push(seg(0.55 * sc, vP, vPk), seg(0.34 * sc, vPk, vOut));
     };
     if (type === 'slip') {
-      tail.push(seg(decT, V, vP, 2.2)); teaseIdx = tail.length;
+      tail.push(decay(decT, V, vP, 4.4)); teaseIdx = tail.length;
       tail.push(seg(pauseT, vP, vP)); tip(1.05 - pauseT * vP, vL);
     } else if (type === 'slip2') {
       const p1 = pauseT * 0.7;
-      tail.push(seg(decT, V, vP, 2.2)); teaseIdx = tail.length;
+      tail.push(decay(decT, V, vP, 4.4)); teaseIdx = tail.length;
       tail.push(seg(p1, vP, vP)); tip(1.0 - p1 * vP, vP);
       tail.push(seg(pauseT, vP, vP)); tip(1.05 - pauseT * vP, vL);
     } else if (type === 'back') {
-      tail.push(seg(decT, V, 0.9, 2.2)); teaseIdx = tail.length;
+      tail.push(decay(decT, V, 0.9, 4.4)); teaseIdx = tail.length;
       tail.push(seg(0.85 / 0.45, 0.9, 0));     // 目標を 0.55 コマ通り過ぎて失速
       tail.push(seg(pauseT + 0.3, 0, 0));      // 宙づり
       tail.push(seg(0.5, 0, -2.2));            // 引き戻し
       vEnd = -2.2;
     } else {
-      tail.push(seg(decT + pauseT, V, vL + 0.5, 2.0), seg(0.45, vL + 0.5, vL));
+      tail.push(decay(decT + pauseT, V, vL + 0.5, 3.8), seg(0.45, vL + 0.5, vL));
     }
     let fixed = segDist(accel, 1);
     tail.forEach((s) => (fixed += segDist(s, 1)));
@@ -319,6 +335,8 @@ const Reel = (function () {
     let idx = 0;
     if (show !== undefined) { const i = strip.indexOf(show); if (i >= 0) idx = i; }
     pos = idx;
+    // 絵柄の指定がないとき（レバー待ち）は、金額の代わりに案内だけを中央に出す
+    if (show === undefined) { ov[pos] = 'PULL'; ov[pos - 1] = 'BLANK'; ov[pos + 1] = 'BLANK'; }
     draw(pos, 0);
   }
 
