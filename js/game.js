@@ -198,7 +198,7 @@ const Game = (function () {
   /* ---------- 状態 → 画面 ---------- */
   function canPlay() {
     const s = Store.state;
-    return !!(s.pins && s.session && !s.locked && !s.play && Engine.sumCounts(s.session.remaining) > 0);
+    return !!(s.pins && s.session && !s.locked && !s.play && s.credits > 0 && Engine.sumCounts(s.session.remaining) > 0);
   }
   function refresh() {
     if (busy) return;
@@ -212,8 +212,32 @@ const Game = (function () {
     if (showingResult || curStage !== 1) { showingResult = false; setStage(1); }
     const ok = canPlay();
     Lever.setEnabled(ok);
+    showCredits();
     if (ok) setPlate('idle', 'PULL THE LEVER', 'レバーを下まで引いてください');
-    else setPlate('error', MSG_EMPTY);
+    else if (s.pins && s.session && Engine.sumCounts(s.session.remaining) > 0 && !(s.credits > 0)) {
+      // 営業中だがクレジットが無い: クレジットを入れるボタンを出す
+      plate.classList.add('hidden');
+      lockbar.innerHTML = '<div class="res"><small>CREDIT</small><b class="zero">0</b></div><div class="side"><button class="btn" data-act="credit">ADD CREDIT</button></div>';
+      lockbar.classList.add('show');
+    } else setPlate('error', MSG_EMPTY);
+  }
+  function showCredits() { $('credit').textContent = Store.state.credits || 0; }
+  /* PIN認証 → 何クレジット入れるか入力 → 加算。成功したら true */
+  async function addCredits() {
+    const role = await UI.auth('認証が必要です', ['staff', 'admin'], 'クレジット追加', 'PINを入力してください');
+    if (!role) return false;
+    const n = await UI.askNumber({ title: 'クレジットを入れる', sub: '入れるクレジット数（1〜99）', min: 1, max: 99 });
+    if (!n) return false;
+    try {
+      Store.transact((s) => {
+        const before = s.credits || 0;
+        s.credits = before + n;
+        Store.log('CREDIT_ADD', { amount: n, before, after: s.credits }, role);
+      });
+    } catch (err) { UI.toast('保存に失敗しました: ' + err.message, 'err'); return false; }
+    Sfx.play('ok');
+    showCredits();
+    return true;
   }
 
   /* 確定済みプレイの途中: このステージのレバーを客自身が引くのを待つ（再起動時の復元にも使用） */
@@ -250,12 +274,16 @@ const Game = (function () {
     const b = e.target.closest('[data-act]');
     if (!b || busy) return;
     Sfx.play('button');
-    // NEXT GAME を押すと認証を求める（PINが通ったときだけ次のプレイへ進む）
-    const role = await UI.auth('認証が必要です', ['staff', 'admin'], '次プレイ認証', 'PINを入力してください');
-    if (!role || !Store.state.play || busy) return;
+    if (b.dataset.act === 'credit') { // プレイ前: クレジットを入れる
+      if (await addCredits()) refresh();
+      return;
+    }
+    // NEXT GAME: クレジットが残っていればそのまま次へ。無ければ PIN → クレジット数の入力
+    if (!(Store.state.credits > 0) && !(await addCredits())) return;
+    if (!Store.state.play || busy) return;
     try {
       Store.transact((s) => {
-        Store.log('NEXT_PLAY', { playNo: s.play ? s.play.playNo : null }, role);
+        Store.log('NEXT_PLAY', { playNo: s.play ? s.play.playNo : null, credits: s.credits });
         s.play = null; s.locked = false;
       });
     } catch (err) { return UI.toast('保存に失敗しました: ' + err.message, 'err'); }
@@ -276,11 +304,13 @@ const Game = (function () {
     if (busy || !s0.session) return refresh();
     // 2ステージ目以降: 結果は確定済み。レバーはそのステージの演出を始めるだけ（再抽選しない）
     if (s0.play && s0.play.phase === 'drawn') return runStage(s0.play, s0.play.cur || 1);
-    if (s0.locked || s0.play) return refresh();
+    if (s0.locked || s0.play || !(s0.credits > 0)) return refresh();
     let res;
     try {
       Store.transact((s) => {
         const ses = s.session;
+        if (!(s.credits > 0)) throw new Error('no credit');
+        s.credits -= 1;                 // 抽選の確定と同じ書き込みで1クレジット消費
         const before = Engine.sumCounts(ses.remaining);
         res = Engine.draw(ses);
         Engine.applyDraw(ses, res);
@@ -296,6 +326,7 @@ const Game = (function () {
       return refresh();
     }
     oneMore = false;
+    showCredits();
     runStage(Store.state.play, 1);
   }
 
@@ -838,6 +869,25 @@ const Game = (function () {
     setPlate('result', fmtN(v), '');
   }
 
+  /* ---------- 「？」ボタン: 遊び方の簡単な説明（確率や残り本数は載せない） ---------- */
+  function initHelp() {
+    const fmtList = (d) => d.values.map((v) => '<span class="hv' + (v === 0 ? ' z' : '') + '">' + fmtN(v) + '</span>').join('') + (d.hasNext ? '<span class="hv n">NEXT STAGE</span>' : '');
+    $('helpBtn').addEventListener('click', () => {
+      if (busy) return;
+      Sfx.play('button');
+      UI.confirm({
+        title: '遊び方', ok: '閉じる', cancel: false,
+        html:
+          '<div class="help">' +
+          '<h5>進め方</h5><ol><li>レバーを下まで引くと、リールが回って止まります。</li><li>止まった数字が結果です。</li><li><b>NEXT STAGE</b> で止まったら次のステージへ。もう一度レバーを引きます。</li><li>STAGE 3 が最後のステージです。</li></ol>' +
+          '<h5>各ステージで出るもの</h5>' +
+          Engine.STAGE_DEFS.map((d) => '<div class="hrow"><em>STAGE ' + d.stage + '</em><div>' + fmtList(d) + '</div></div>').join('') +
+          '<h5>演出について</h5><ul><li>止まりかけてから、もう1コマ進んだり戻ったりすることがあります。</li><li><b>ONE MORE CHANCE</b> が出たら、もう一度レバーを引けます。</li><li>画面全体が<b>虹色</b>になったら、当選が確定しています。</li><li>1回のプレイで 1 クレジットを使います。</li></ul>' +
+          '</div>',
+      });
+    });
+  }
+
   /* ---------- 設定画面への隠し入口（左上エンブレム長押し） ---------- */
   function initSecret() {
     const crest = $('crest');
@@ -909,6 +959,7 @@ const Game = (function () {
     $('shutterLabel').innerHTML = '<div class="medal">' + edges + '<div class="face back"></div><div class="face front"><small>STAGE</small><b>2</b><em></em></div></div>';
     lockbar.addEventListener('click', onLockbar);
     initSecret();
+    initHelp();
     setStage(1);
     refresh();
     await new Promise((resolve) => {
