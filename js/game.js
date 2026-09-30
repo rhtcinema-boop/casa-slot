@@ -563,27 +563,21 @@ const Game = (function () {
 
   /* 新しいステージに到着: 奥から飛び込むカメラ（指数減速）と同時に全体が弾ける */
   async function arrive(to, title) {
-    const fin = to === 3, colors = STAGE_COL[to], ACC = STAGE_ACC[to], content = $('content');
+    const fin = to === 3, colors = STAGE_COL[to], ACC = STAGE_ACC[to];
     if (curStage !== to) setStage(to); else FX.setAmbient([0, 0, 14, 30][to], colors);
     if (pendingSure) { pendingSure = false; announceSure(); }
     Sfx.play('open', fin);
-    content.classList.add('reveal');
-    bump();
-    stageEl.dataset.win = fin ? 7 : 6;
+    // 重い処理が同じ瞬間に重ならないよう、少しずつずらして出す
     FX.ring(CX, CY, 'white', 1300, 1.0);
-    setTimeout(() => FX.ring(CX, CY, ACC, 1500, 1.2), 160);
-    FX.burst(CX, CY, fin ? 300 : 220, { max: 1700, life: 1.6, size: 26, colors });
-    FX.streaks(CX, CY, fin ? 120 : 90, 0.8, { colors });
-    [300, 1300].forEach((x) => FX.fountain(x, 930, fin ? 70 : 50, 0.7, colors));
-    FX.flakes(fin ? 110 : 80, 0.9, colors);
-    const y0 = RUNG_Y[to - 1], y1 = RUNG_Y[to]; // ステージ表示を光が駆け上がる
-    for (let i = 0; i <= 6; i++) setTimeout(() => FX.burst(180, y0 + ((y1 - y0) * i) / 6, 14, { max: 260, life: 0.6, size: 12, colors }), 120 + i * 40);
-    setTimeout(() => { FX.ring(180, y1, ACC, 260, 0.6); FX.burst(180, y1, 80, { max: 600, colors }); }, 420);
-    if (title) { await wait(420); await stampStage(to, 380); await hideStamp(); await wait(80); } // スローが明けてからチップを出す
+    FX.burst(CX, CY, fin ? 160 : 120, { max: 1700, life: 1.6, size: 26, colors });
+    setTimeout(() => { FX.ring(CX, CY, ACC, 1500, 1.2); FX.streaks(CX, CY, fin ? 70 : 50, 0.7, { colors }); }, 120);
+    setTimeout(() => [300, 1300].forEach((x) => FX.fountain(x, 930, fin ? 40 : 30, 0.6, colors)), 240);
+    setTimeout(() => FX.flakes(fin ? 60 : 40, 0.8, colors), 360);
+    const y1 = RUNG_Y[to];
+    setTimeout(() => { FX.ring(180, y1, ACC, 260, 0.6); FX.burst(180, y1, 50, { max: 600, colors }); }, 480);
+    if (title) { await wait(420); await stampStage(to, 380); await hideStamp(); await wait(80); }
     else await wait(750);
-    content.classList.remove('reveal');
     stageEl.classList.remove('fin');
-    delete stageEl.dataset.win;
   }
 
   /* 金庫扉。枚数: 通常 1 枚 / STAGE 3 へは 3 枚 / 虹（当選確定）のときは 8 枚。
@@ -610,8 +604,8 @@ const Game = (function () {
     return layers;
   }
   function seamSparks(horiz, colors) {
-    if (horiz) for (let x = 60; x <= 1540; x += 92) FX.burst(x, 450, 8, { max: 460, life: 0.8, size: 14, colors });
-    else for (let y = 30; y <= 870; y += 84) FX.burst(800, y, 8, { max: 460, life: 0.8, size: 14, colors });
+    if (horiz) for (let x = 100; x <= 1500; x += 200) FX.burst(x, 450, 8, { max: 460, life: 0.7, size: 14, colors });
+    else for (let y = 60; y <= 840; y += 195) FX.burst(800, y, 8, { max: 460, life: 0.7, size: 14, colors });
   }
   async function transVault(to) {
     const fin = to === 3, rb = pendingSure;
@@ -635,16 +629,17 @@ const Game = (function () {
     setStage(to);
     FX.setAmbient(0);
     stageEl.classList.add('ceremony');
+    await wait(260);                   // 色の切り替えの描き直しが終わってからチップを出す（重なると引っかかる）
     await stampStage(to, 300, rb);
 
     // 溜め（約2秒）: ドラムロール。継ぎ目の光が速く脈打ち、光が扉へ吸い込まれていく
     const roll = 1.9;
     Sfx.play('roll', roll);
     stageEl.classList.add('rolling');
-    FX.streaks(800, 450, fin ? 140 : 100, roll - 0.3, { inward: true, colors });
-    FX.converge(800, 450, fin ? 150 : 110, roll);
+    FX.streaks(800, 450, fin ? 70 : 50, roll - 0.3, { inward: true, colors });
+    FX.converge(800, 450, fin ? 70 : 50, roll);
     const tm = [];
-    for (let t = 0.25; t < roll; t += 0.3) tm.push(setTimeout(() => FX.burst(200 + Math.random() * 1200, 450, 14, { max: 500, life: 0.8, size: 12, colors }), t * 1000));
+    for (let t = 0.25; t < roll; t += 0.5) tm.push(setTimeout(() => FX.burst(200 + Math.random() * 1200, 450, 14, { max: 500, life: 0.8, size: 12, colors }), t * 1000));
     if (fin) [0.7, 1.4].forEach((t) => tm.push(setTimeout(() => { flash(true); Sfx.play('thunder'); FX.lightning(rnd(100, 1500), -100, rnd(300, 1300), 450, STAGE_ACC[to], 6); }, t * 1000)));
     await wait(roll * 1000);
     tm.forEach(clearTimeout);
@@ -940,7 +935,7 @@ const Game = (function () {
     Reel.init($('reel'));
     Lever.init(onPull);
     let edges = '';
-    for (let i = 0; i < 6; i++) edges += '<i style="--i:' + i + '"></i>';
+    for (let i = 0; i < 4; i++) edges += '<i style="--i:' + i + '"></i>';
     $('shutterLabel').innerHTML = '<div class="medal">' + edges + '<div class="face back"></div><div class="face front"><small>STAGE</small><b>2</b><em></em></div></div>';
     lockbar.addEventListener('click', onLockbar);
     initSecret();
