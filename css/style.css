@@ -973,3 +973,27 @@ input[type=range].vol { width: 380px; height: 44px; accent-color: #e9c25e; touch
 .shutter-label small { font-size: 62px; letter-spacing: .34em; padding-left: .34em; color: #fff; -webkit-text-stroke: 0; text-shadow: 0 3px 0 #000, 0 0 22px rgba(var(--acc), 1); }
 .shutter-label b { font-size: 300px; line-height: .95; -webkit-text-stroke-width: 4px; }
 .shutter-label em { font-size: 50px; letter-spacing: .1em; padding-left: .1em; margin-top: 6px; color: #fff; text-shadow: 0 3px 0 #000, 0 0 22px rgba(var(--acc), 1); }
+
+/* ==========================================================
+   多重の金庫扉（1枚 / STAGE 3 へは 3枚 / 虹のときは 8枚）
+   ========================================================== */
+#doors { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.door { position: absolute; will-change: transform; --dc: var(--acc); transition: transform .24s cubic-bezier(.7, 0, .84, 0); box-shadow: 0 0 50px #000;
+  background: linear-gradient(rgba(var(--dc), .16), rgba(var(--dc), .16)), repeating-linear-gradient(180deg, #232328 0 6px, #17171b 6px 58px, #0b0b0d 58px 62px); }
+.door.l, .door.r { background: linear-gradient(rgba(var(--dc), .16), rgba(var(--dc), .16)), repeating-linear-gradient(90deg, #232328 0 6px, #17171b 6px 58px, #0b0b0d 58px 62px); }
+.door.t { left: 0; top: 0; width: 100%; height: 50.2%; transform: translateY(-102%); }
+.door.b { left: 0; bottom: 0; width: 100%; height: 50.2%; transform: translateY(102%); }
+.door.l { left: 0; top: 0; width: 50.2%; height: 100%; transform: translateX(-102%); }
+.door.r { right: 0; top: 0; width: 50.2%; height: 100%; transform: translateX(102%); }
+.door.in { transform: none; }
+.door.opening { transition: transform .5s cubic-bezier(.65, 0, .15, 1); }
+.door::after { content: ""; position: absolute; background: linear-gradient(180deg, #fff, rgba(var(--dc), 1) 45%, rgba(var(--dc), .55)); box-shadow: 0 0 26px rgba(var(--dc), .8); }
+.door.t::after { left: 0; right: 0; bottom: 0; height: 18px; } .door.b::after { left: 0; right: 0; top: 0; height: 18px; }
+.door.l::after { top: 0; bottom: 0; right: 0; width: 18px; } .door.r::after { top: 0; bottom: 0; left: 0; width: 18px; }
+/* 虹色のチップ（当選確定のステージアップ） */
+.shutter-label.rainbow .medal > i, .shutter-label.rainbow .medal > i:nth-child(even) { background: conic-gradient(#ff3b30, #ff9500, #ffe600, #34e36a, #32d4ff, #3a6bff, #c15cff, #ff3b30); box-shadow: none; }
+.shutter-label.rainbow .medal .face { background: radial-gradient(circle, #1d1d22 0 40%, #0b0b0d 61%, transparent 61.5%), conic-gradient(#ff3b30, #ff9500, #ffe600, #34e36a, #32d4ff, #3a6bff, #c15cff, #ff3b30);
+  box-shadow: inset 0 0 0 7px #000, inset 0 0 0 16px #fff, 0 0 170px rgba(255, 255, 255, .75); }
+.shutter-label.rainbow .medal .face::before { box-shadow: 0 0 0 5px #fff, inset 0 0 60px rgba(255, 255, 255, .3); }
+.shutter-label.rainbow b { background: linear-gradient(90deg, #ff3b30, #ff9500, #ffe600, #34e36a, #32d4ff, #3a6bff, #c15cff); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 4px 0 #000); }
+.shutter-label.rainbow small, .shutter-label.rainbow em { text-shadow: 0 3px 0 #000, 0 0 22px #fff; }
