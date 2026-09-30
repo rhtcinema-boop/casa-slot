@@ -446,6 +446,11 @@ const Admin = (function () {
     return '<div class="panel"><h4>効果音の音量</h4><div class="row"><input class="vol" type="range" min="0" max="100" value="' + Math.round(Store.state.settings.volume * 100) + '" data-vol>' +
       '<button class="btn sm ghost" data-act="test-sound">テスト再生</button></div></div>' +
       (fs ? '<div class="panel"><h4>表示</h4><div class="acts" style="justify-content:flex-start"><button class="btn sm ghost" data-act="fullscreen">フルスクリーン切替</button></div></div>' : '') +
+      (function () { const p = Store.state.settings.perf || {}; const sw = (k, label, hint) => '<div class="row"><div class="lbl" style="font-family:var(--font-ui);font-size:19px">' + label + '<small>' + hint + '</small></div><button class="btn sm ' + (p[k] ? '' : 'ghost') + '" data-act="perf" data-k="' + k + '">' + (p[k] ? 'ON' : 'OFF') + '</button></div>';
+        return '<div class="panel"><h4>動作が重いときの診断</h4><p class="hint">どれをONにすると軽くなるかで、重さの原因を切り分けられます。</p>' +
+          sw('meter', 'コマ時間を表示', '画面の左下に、直近5秒の最大コマ時間と、33ms・50msを超えた回数を出します') +
+          sw('noBg', '背景の光のアニメを止める', '回転する光条・サーチライト・外周の光・LED・電球の点滅を止めます') +
+          sw('noFx', '粒子を止める', '火花・チップ・紙吹雪などを出しません') + '</div>'; })() +
       '<div class="panel"><h4>データ</h4><dl class="kv"><dt>履歴件数</dt><dd>' + Store.state.logSeq + ' 件（営業終了しても削除されません）</dd><dt>保存先</dt><dd>この端末のブラウザ内ストレージ</dd></dl>' +
       '<p class="hint" style="margin-top:14px">ホーム画面に追加したアプリとして使用すると、データが自動削除されにくくなります。ブラウザの「履歴とWebサイトデータを消去」を行うと全データが失われます。</p></div>';
   }
@@ -531,6 +536,12 @@ const Admin = (function () {
         case 'pin-staff': return reissueStaffPin();
         case 'pin-admin': return changeAdminPin();
         case 'test-sound': return Sfx.play('winSmall');
+        case 'perf': {
+          const k = b.dataset.k;
+          Store.transact((st) => { st.settings.perf = Object.assign({}, st.settings.perf); st.settings.perf[k] = !st.settings.perf[k]; });
+          Game.applyPerf();
+          return render();
+        }
         case 'fullscreen': {
           const d = document, r = d.documentElement;
           if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
