@@ -603,3 +603,33 @@ input[type=range].vol { width: 380px; height: 44px; accent-color: #e9c25e; touch
 
 @media (orientation: portrait) { #rotate { display: grid; } }
 @media (prefers-reduced-motion: reduce) { .rays, .banner-rays { animation: none !important; } }
+
+/* ==========================================================
+   ロゴを筐体になじませる
+   白ベタをやめ、画面の他の金属パーツと同じ素材（ステージ色に連動する金属グラデーション）で
+   彫り出したように見せる。上端のハイライト・下方向の厚み・ゆっくり横切る光沢つき。
+   ========================================================== */
+.logo-word, .logo-emblem { position: relative; background: none; -webkit-mask: none; mask: none;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .55)) drop-shadow(0 2px 0 var(--accent-dim)) drop-shadow(0 4px 0 #120b02) drop-shadow(0 9px 10px rgba(0, 0, 0, .75)); }
+.logo-word::before, .logo-word::after, .logo-emblem::before, .logo-emblem::after { content: ""; position: absolute; inset: 0; }
+.logo-word::before, .logo-word::after { -webkit-mask: url(../logo-casa.png) center / contain no-repeat; mask: url(../logo-casa.png) center / contain no-repeat; }
+.logo-emblem::before, .logo-emblem::after { -webkit-mask: url(../logo-emblem.png) center / contain no-repeat; mask: url(../logo-emblem.png) center / contain no-repeat; }
+/* 上端の光の縁 */
+.logo-word::before, .logo-emblem::before { background: #fff; transform: translateY(-1.5px); opacity: .85; }
+/* 金属の面＋横切る光沢 */
+.logo-word::after, .logo-emblem::after {
+  background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, .95) 50%, transparent 58%) no-repeat, var(--text-grad);
+  background-size: 260% 100%, 100% 100%; background-position: 160% 0, 0 0; animation: logo-sheen 5s ease-in-out infinite; }
+@keyframes logo-sheen { 0%, 55% { background-position: 160% 0, 0 0; } 85%, 100% { background-position: -60% 0, 0 0; } }
+.brand { filter: none; gap: .34em; }
+.brand b { font-size: .62em; letter-spacing: .34em; padding-top: .3em; }
+
+/* 左上のエンブレムは、リール枠と同じ金属のバッジに埋め込む */
+#crest { filter: none; }
+#crest::before { content: ""; position: absolute; inset: 7px; border-radius: 26px; background: var(--metal-frame); filter: saturate(var(--frame-sat)) brightness(var(--frame-bri, 1));
+  box-shadow: 0 0 0 2px #120b02, 0 12px 26px rgba(0, 0, 0, .75), inset 0 2px 2px rgba(255, 255, 255, .7), inset 0 -2px 3px rgba(0, 0, 0, .5); }
+#crest::after { content: ""; position: absolute; inset: 14px; border-radius: 20px; background: linear-gradient(180deg, #1d1d22, #08080a); box-shadow: inset 0 0 0 2px #000, inset 0 6px 14px #000, inset 0 0 22px rgba(var(--acc), .18); }
+#crest .logo-emblem { z-index: 1; width: 66px; height: 76px; }
+#crest.holding .logo-emblem { transform: scale(.9); }
+.splash-in .logo-emblem { filter: drop-shadow(0 2px 0 #6d4a12) drop-shadow(0 5px 0 #120b02) drop-shadow(0 14px 18px rgba(0, 0, 0, .8)); }
+#stage.sure .logo-word::after, #stage.sure .logo-emblem::after { background: linear-gradient(90deg, #ff3b30, #ff9500, #ffe600, #34e36a, #32d4ff, #3a6bff, #c15cff, #ff3b30); background-size: 200% 100%; animation: rainbow-slide 1.2s linear infinite; }
