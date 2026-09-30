@@ -38,14 +38,7 @@ const Game = (function () {
   /* 時間の速さを from → to へ指数関数的に変える（粒子と画面上のアニメーション全体が対象）。
      例: bulletTime(0.15, 0.5) … 0.15秒ほぼ止まり、0.5秒かけて指数的に等速へ戻る */
   let warpRaf = 0;
-  function applyRate(rate) {
-    FX.setTimeScale(rate);
-    if (!stageEl.getAnimations) return;
-    try {
-      $('content').getAnimations().forEach((an) => { an.playbackRate = rate; });           // カメラ
-      [banner, $('trans'), $('shutterLabel')].forEach((el) => el.getAnimations({ subtree: true }).forEach((an) => { an.playbackRate = rate; }));
-    } catch (e) { /* 非対応ブラウザは粒子のみ */ }
-  }
+  function applyRate(rate) { FX.setTimeScale(rate); } // スローは粒子だけに掛ける
   function timeWarp(from, to, dur) {
     cancelAnimationFrame(warpRaf);
     const t0 = performance.now();
@@ -69,7 +62,10 @@ const Game = (function () {
 
   /* 連続フラッシュ */
   function strobe(n, gap) { for (let i = 0; i < n; i++) setTimeout(() => flash(true), i * (gap || 130)); }
-  function quake() { restart($('viewport'), 'quake'); } // 画面全体を揺らす
+  function quake() { restart(cabinet, 'shake'); } // 揺らすのはリールの筐体だけ（画面全体を揺らすと重い）
+  const raf2 = () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+  /* 演出中は背景の常時アニメ（光条・ライト・外周光・LED）を非表示にして描画負荷を空ける */
+  function fxMode(on) { stageEl.classList.toggle('fxmode', on); }
   function restart(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
   function flash(soft) { const f = $('flash'); f.className = ''; void f.offsetWidth; f.className = soft ? 'go-soft' : 'go'; }
 
@@ -240,12 +236,14 @@ const Game = (function () {
   }
   /* クレジットを使い切ったとき: 合計当選額を大きく見せる */
   async function totalFx(total) {
-    showBanner('win lv3 total', 'TOTAL WIN', fmtN(total));
+    fxMode(true);
+    showBanner('win lv3 total', 'TOTAL WIN', fmtN(total), 1000);
     flash(true);
     if (total > 0) { Sfx.play('win', 3); FX.burst(CX, CY, 160, { max: 1200, life: 1.5 }); FX.ring(CX, CY, 'gold', 1000, 0.8); FX.chips(50, 1.0, ['gold', 'black', 'red']); }
     else Sfx.play('stop');
     await wait(2300);
     await hideBanner();
+    fxMode(false);
   }
   /* PIN認証 → 何クレジット入れるか入力 → 加算。成功したら true */
   async function addCredits() {
@@ -617,27 +615,30 @@ const Game = (function () {
     stageEl.classList.toggle('fin', fin);
     await frame();
 
-    // 閉門: 1枚ずつ叩きつける
+    fxMode(true);
+    const content = $('content');
+    // 閉門: 1枚ずつ叩きつける。下に隠れた扉は描画から外す（同時に描くのは最大2組）
     for (let i = 0; i < n; i++) {
       layers[i].pair.forEach((d) => d.classList.add('in'));
       if (i === 0) { Sfx.play('shutterClose'); await wait(440); } else { await wait(gap - 40); Sfx.play('slam', i / (n - 1)); await wait(40); }
+      if (i >= 2) layers[i - 2].pair.forEach((d) => { d.style.display = 'none'; });
       quake();
       flash(true);
       seamSparks(layers[i].horiz, rb ? [RAINBOW[i % RAINBOW.length], 'white'] : colors);
     }
-    FX.lightning(0, 450, 800, 450, 'white', 4); FX.lightning(1600, 450, 800, 450, 'white', 4);
+    // 扉の裏を非表示にしてから色を切り替え、描き直しが落ち着くのを待つ
+    content.style.visibility = 'hidden';
     setStage(to);
-    FX.setAmbient(0);
+    await raf2();
     stageEl.classList.add('ceremony');
-    await wait(260);                   // 色の切り替えの描き直しが終わってからチップを出す（重なると引っかかる）
+    await raf2();
     await stampStage(to, 300, rb);
 
     // 溜め（約2秒）: ドラムロール。継ぎ目の光が速く脈打ち、光が扉へ吸い込まれていく
     const roll = 1.9;
     Sfx.play('roll', roll);
     stageEl.classList.add('rolling');
-    FX.streaks(800, 450, fin ? 70 : 50, roll - 0.3, { inward: true, colors });
-    FX.converge(800, 450, fin ? 70 : 50, roll);
+    FX.converge(800, 450, fin ? 60 : 40, roll);
     const tm = [];
     for (let t = 0.25; t < roll; t += 0.5) tm.push(setTimeout(() => FX.burst(200 + Math.random() * 1200, 450, 14, { max: 500, life: 0.8, size: 12, colors }), t * 1000));
     if (fin) [0.7, 1.4].forEach((t) => tm.push(setTimeout(() => { flash(true); Sfx.play('thunder'); FX.lightning(rnd(100, 1500), -100, rnd(300, 1300), 450, STAGE_ACC[to], 6); }, t * 1000)));
@@ -645,11 +646,14 @@ const Game = (function () {
     tm.forEach(clearTimeout);
     stageEl.classList.remove('rolling');
 
-    // 開門: 手前の扉から1枚ずつ弾けるように開く
+    // 開門: 裏の画面を表示に戻してから、手前の扉から1枚ずつ開く
     await hideStamp();
+    content.style.visibility = '';
+    await raf2();
     stageEl.classList.add('blast');
     stageEl.classList.remove('ceremony');
     for (let i = n - 1; i >= 1; i--) {
+      if (i >= 2) layers[i - 2].pair.forEach((d) => { d.style.display = ''; }); // 次に見える扉を戻す
       layers[i].pair.forEach((d) => { d.classList.add('opening'); d.classList.remove('in'); });
       Sfx.play('slam', (n - 1 - i) / (n - 1));
       flash(true);
@@ -657,9 +661,10 @@ const Game = (function () {
       seamSparks(layers[i].horiz, rb ? [RAINBOW[i % RAINBOW.length], 'white'] : colors);
       await wait(gap);
     }
-    layers[0].pair.forEach((d) => { d.classList.add('opening'); d.classList.remove('in'); });
+    layers[0].pair.forEach((d) => { d.style.display = ''; d.classList.add('opening'); d.classList.remove('in'); });
     flash(false);
     quake();
+    fxMode(false);
     await arrive(to, false);
     setTimeout(() => { stageEl.classList.remove('blast'); $('doors').innerHTML = ''; }, 700);
   }
@@ -687,21 +692,24 @@ const Game = (function () {
     stageEl.classList.remove('opening');
   }
 
-  function showBanner(kind, label, value) {
-    banner.className = 'banner ' + kind;
+  function showBanner(kind, label, value, amount) {
+    const isWin = kind.indexOf('win') >= 0;
+    banner.className = 'banner ' + kind + (isWin ? ' cv' : '');
     $('bannerLabel').textContent = label;
-    if (kind.indexOf('next') >= 0) $('bannerValue').innerHTML = value.split('').map((ch, i) => '<span style="--i:' + i + '">' + (ch === ' ' ? '&nbsp;' : ch) + '</span>').join('');
-    else $('bannerValue').textContent = value;
-    $('bannerValue').classList.remove('slam');
+    if (isWin) { bannerAmount = amount === undefined ? 1000 : amount; Reel.drawText($('bannerCv'), value, bannerAmount); $('bannerValue').textContent = ''; }
+    else $('bannerValue').innerHTML = value.split('').map((ch, i) => '<span style="--i:' + i + '">' + (ch === ' ' ? '&nbsp;' : ch) + '</span>').join('');
+    $('bannerCv').classList.remove('slam');
     void banner.offsetWidth;
     banner.classList.add('show');
     win.classList.add('veil'); // リール上の同じ文字と重ならないよう一時的に沈める
   }
+  let bannerAmount = 1000;
+  function setBannerText(text) { Reel.drawText($('bannerCv'), text, bannerAmount); }
   async function hideBanner() {
-    $('bannerValue').classList.remove('slam');
+    $('bannerCv').classList.remove('slam');
     banner.classList.add('out');
     win.classList.remove('veil');
-    await wait(460);
+    await wait(360);
     banner.className = 'banner';
   }
 
@@ -742,7 +750,7 @@ const Game = (function () {
     win.classList.add('win');
     cabinet.classList.add('party', 'tremble');
     $('dim').classList.add('on');
-    content.classList.add('zoom-charge');
+    fxMode(true);
     Sfx.play('riser', 1.0);
     Sfx.play('warp');
     FX.converge(CX, CY, 140 + L * 20, 1.0);
@@ -752,16 +760,13 @@ const Game = (function () {
 
     // 爆発: カメラが一瞬で引いて戻り、放射状の稲妻が走る
     cabinet.classList.remove('tremble');
-    content.classList.remove('zoom-charge');
-    content.classList.add('zoom-punch');
     if (L < 6) $('dim').classList.remove('on');
     quake();
     for (let i = 0; i < 4 + L; i++) { const an = (i / (4 + L)) * 6.28 + Math.random() * 0.4; FX.lightning(CX, CY, CX + Math.cos(an) * 900, CY + Math.sin(an) * 560, i % 2 ? STAGE_ACC[curStage] : 'white', 5); }
     FX.streaks(CX, CY, 100 + L * 12, 0.8, { colors });
-    later(1.0, () => content.classList.remove('zoom-punch'));
     stageEl.dataset.win = L;
     setPlate('spin', fx.label, '');
-    showBanner('win lv' + L, fx.label, fx.count ? '0' : fmtN(v));
+    showBanner('win lv' + L, fx.label, fx.count ? '0' : fmtN(v), v);
     Sfx.play('win', L);
 
     // 開幕の一撃
@@ -781,13 +786,13 @@ const Game = (function () {
       const step = (now) => {
         const u = Math.min(1, (now - t0) / (fx.count * 1000));
         const e = 1 - Math.pow(1 - u, 3);
-        if (now - lastTick > 60 && u < 1) { lastTick = now; el.textContent = fmtN(Math.round((v * e) / 100) * 100); Sfx.play('count', u); }
+        if (now - lastTick > 70 && u < 1) { lastTick = now; setBannerText(fmtN(Math.round((v * e) / 100) * 100)); Sfx.play('count', u); }
         if (u < 1 && stageEl.dataset.win) return requestAnimationFrame(step);
-        el.textContent = fmtN(v);
+        setBannerText(fmtN(v));
       };
       requestAnimationFrame(step);
       later(fx.count, () => {
-        restart($('bannerValue'), 'slam');
+        restart($('bannerCv'), 'slam');
         Sfx.play('stop');
         FX.burst(CX, CY, 60 + L * 20, { max: 900, colors });
         if (L >= 5) flash(true);
@@ -800,16 +805,16 @@ const Game = (function () {
     const chipCols = CHIP_LV[L - 1];
     Sfx.play('chipfall', fx.dur - 1.5);
     if (L <= 2) FX.chips(20 + L * 20, fx.dur - 1.4, chipCols);
-    else FX.chips(40 + L * 34, fx.dur - 1.6, chipCols, { land: true, size: 20 });
+    else FX.chips(30 + L * 14, fx.dur - 1.6, chipCols, { land: true, size: 22 });
     if (L >= 6) {
       [0.5, fx.dur * 0.4, fx.dur * 0.68, fx.dur * 0.82].slice(0, L - 4).forEach((t) => later(t, () => {
-        FX.chipFountain(240, 930, 55, 0.8, chipCols, { land: true, vx: 220 });
-        FX.chipFountain(1360, 930, 55, 0.8, chipCols, { land: true, vx: -220 });
+        FX.chipFountain(240, 930, 22, 0.8, chipCols, { land: true, vx: 220 });
+        FX.chipFountain(1360, 930, 22, 0.8, chipCols, { land: true, vx: -220 });
         Sfx.play('chipfall', 1.2);
       }));
     }
     if (L >= 3) FX.cards(6 + L * 2, 0.5, { x: CX, y: CY });
-    if (L >= 5) FX.flakes(L * 22, fx.dur - 1.5, colors);
+    if (L >= 5) FX.flakes(L * 8, fx.dur - 1.5, colors);
     if (fx.fire) {
       for (let t = 0.6; t < fx.dur - 0.9; t += fx.fire) {
         later(t, () => {
@@ -835,18 +840,66 @@ const Game = (function () {
       flash(false); quake(); bump(); Sfx.play('impact'); FX.ring(CX, CY, 'white', 1400, 1.0); FX.burst(CX, CY, 300, { max: 1700, life: 2, size: 26, colors }); strobe(3); bulletTime(0.1, 0.35);
     });
     if (L >= 3) later(fx.dur - 1.0, () => {
-      restart($('bannerValue'), 'slam'); Sfx.play('stamp'); flash(false); quake();
+      restart($('bannerCv'), 'slam'); Sfx.play('stamp'); flash(false); quake();
       FX.ring(CX, CY, 'gold', 1300, 1.0); FX.burst(CX, CY, 200 + L * 30, { max: 1600, life: 1.6, colors });
     });
     await wait(fx.dur * 1000);
     timers.forEach(clearTimeout);
-    content.classList.remove('zoom-punch');
+    fxMode(false);
     delete stageEl.dataset.win;
     $('dim').classList.remove('on');
     FX.releasePile(); // 積み上がったチップを弾き飛ばして片付ける
     await hideBanner();
     cabinet.classList.remove('party');
     setPlate('result lv' + L, fmtN(v), ''); // 金額に応じた色
+  }
+
+  /* 光条とサーチライトは、起動時に小さな画像を1枚ずつ作って回すだけにする
+     （CSS のマスクや切り抜きは、iPad では毎コマ別処理になって重い） */
+  function buildLightSprites() {
+    const put = (canvas, name) => canvas.toBlob((blob) => { if (blob) stageEl.style.setProperty(name, 'url(' + URL.createObjectURL(blob) + ')'); });
+    const c = document.createElement('canvas');
+    c.width = c.height = 512;
+    let x = c.getContext('2d');
+    const g1 = x.createRadialGradient(256, 256, 18, 256, 256, 256);
+    g1.addColorStop(0, 'rgba(255,245,225,0)'); g1.addColorStop(0.12, 'rgba(255,245,225,.55)'); g1.addColorStop(0.55, 'rgba(255,245,225,.18)'); g1.addColorStop(1, 'rgba(255,245,225,0)');
+    x.fillStyle = g1;
+    for (let i = 0; i < 24; i++) { // 24本の光条
+      const a0 = (i * 15 * Math.PI) / 180, a1 = ((i * 15 + 5) * Math.PI) / 180;
+      x.beginPath(); x.moveTo(256, 256); x.arc(256, 256, 256, a0, a1); x.closePath(); x.fill();
+    }
+    put(c, '--rays-img');
+    const b = document.createElement('canvas');
+    b.width = 128; b.height = 512;
+    x = b.getContext('2d');
+    const g2 = x.createLinearGradient(0, 512, 0, 0);
+    g2.addColorStop(0, 'rgba(255,245,225,.55)'); g2.addColorStop(0.45, 'rgba(255,245,225,.12)'); g2.addColorStop(0.9, 'rgba(255,245,225,0)');
+    x.fillStyle = g2;
+    x.beginPath(); x.moveTo(58, 512); x.lineTo(70, 512); x.lineTo(128, 0); x.lineTo(0, 0); x.closePath(); x.fill();
+    put(b, '--beam-img');
+  }
+
+  /* ---------- 診断: コマ時間の表示と、負荷の切り分け用スイッチ（設定画面の「その他」） ---------- */
+  function applyPerf() {
+    const p = Store.state.settings.perf || {};
+    stageEl.classList.toggle('no-bg', !!p.noBg);
+    FX.setEnabled(!p.noFx);
+    const m = $('meter');
+    m.style.display = p.meter ? 'block' : 'none';
+    if (p.meter && !applyPerf.on) {
+      applyPerf.on = true;
+      let last = performance.now(), buf = [];
+      const tick = (now) => {
+        buf.push([now, now - last]); last = now;
+        while (buf.length && now - buf[0][0] > 5000) buf.shift();
+        if (buf.length % 20 === 0) {
+          const d = buf.map((e) => e[1]).sort((a, c2) => a - c2);
+          m.textContent = 'max ' + Math.round(d[d.length - 1]) + 'ms / >33ms ' + d.filter((v) => v > 33).length + ' / >50ms ' + d.filter((v) => v > 50).length + ' (5s)';
+        }
+        if (applyPerf.on) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    } else if (!p.meter) applyPerf.on = false;
   }
 
   /* ---------- 「？」ボタン: 遊び方の簡単な説明（確率や残り本数は載せない） ---------- */
@@ -934,12 +987,12 @@ const Game = (function () {
     FX.init($('fx'));
     Reel.init($('reel'));
     Lever.init(onPull);
-    let edges = '';
-    for (let i = 0; i < 4; i++) edges += '<i style="--i:' + i + '"></i>';
-    $('shutterLabel').innerHTML = '<div class="medal">' + edges + '<div class="face back"></div><div class="face front"><small>STAGE</small><b>2</b><em></em></div></div>';
+    $('shutterLabel').innerHTML = '<div class="medal"><div class="face front"><small>STAGE</small><b>2</b><em></em></div></div>'; // 平面1枚（立体の層は重いので廃止）
     lockbar.addEventListener('click', onLockbar);
     initSecret();
     initHelp();
+    buildLightSprites();
+    applyPerf();
     setStage(1);
     refresh();
     await new Promise((resolve) => {
@@ -957,5 +1010,5 @@ const Game = (function () {
   }
 
   document.addEventListener('DOMContentLoaded', init);
-  return { refresh };
+  return { refresh, applyPerf };
 })();
