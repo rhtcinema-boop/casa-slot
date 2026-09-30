@@ -258,7 +258,8 @@ const Reel = (function () {
     const minCruise = cr[0] + Math.random() * (cr[1] - cr[0]);
     const n = STRIPS[st].length;
     let T = Math.ceil(p0 + fixed + V * minCruise);
-    while (STRIPS[st][mod(T, n)] !== sym) T++;
+    // 帯に無い絵柄が来ても止まらなくならないよう、探すのは1周ぶんまで
+    for (let k = 0; k < n && STRIPS[st][mod(T, n)] !== sym; k++) T++;
     const cruise = seg((T - p0 - fixed) / V, V, V);
     const segs = [accel, cruise].concat(tail);
     let t = TW, p = p0, teaseAt = -1;
@@ -284,6 +285,7 @@ const Reel = (function () {
     const put = (i, s) => { if (s !== undefined && s !== null) ov[i] = s; };
     Object.keys(ov).forEach((k) => { if (Math.abs(k - p0) > 2) delete ov[k]; });
     [T - 2, T - 1, T, T + 1].forEach((i) => delete ov[i]);
+    if (STRIPS[st][mod(T, n)] !== sym) ov[T] = sym; // 万一、帯に無い絵柄が指定されたら、その位置にそのまま表示する
     if (type === 'slip') put(T - 1, bait[0]);
     else if (type === 'slip2') { put(T - 2, bait[0]); put(T - 1, bait[1]); }
     else if (type === 'back') put(T + 1, bait[0]);
