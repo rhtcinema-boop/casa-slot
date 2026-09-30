@@ -265,51 +265,6 @@ const Game = (function () {
     runStage(Store.state.play, 1);
   }
 
-  /* ---------- パチンコ風演出 ----------
-     カットイン帯（色で期待度を示す）/ 役物落下 / パトランプ / リーチ。どれも見せ方だけで結果には影響しない。 */
-  function cutin(text, tier) {
-    const el = $('cutin');
-    el.className = 't-' + tier;
-    $('cutinText').textContent = text;
-    void el.offsetWidth;
-    el.classList.add('go');
-    return wait(1000);
-  }
-  function yakumono() { // ロゴの役物が落ちてくる
-    restart($('yaku'), 'go');
-    Sfx.play('gashan');
-    setTimeout(() => { quake(); flash(true); FX.ring(800, 450, 'white', 1100, 0.8); FX.burst(800, 450, 220, { max: 1400, life: 1.6, colors: STAGE_COL[curStage] }); }, 220);
-  }
-  function patlamp(sec) {
-    stageEl.classList.add('patlamp');
-    clearTimeout(patlamp.t);
-    patlamp.t = setTimeout(() => stageEl.classList.remove('patlamp'), sec * 1000);
-  }
-  /* 予告: レバー直後に出る色つきカットイン。色が上がるほど当たりやすい（青 < 緑 < 赤 < 金）。
-     YOKOKU[当たり/ハズレ] = [なし, 青, 緑, 赤, 金] の出現割合。金はハズレでは出ない。 */
-  const YOKOKU = { good: [0.30, 0.22, 0.22, 0.18, 0.08], bad: [0.72, 0.18, 0.08, 0.02, 0] };
-  const YOKOKU_TEXT = [null, ['チャンス', 'blue'], ['アツい！', 'green'], ['激アツ!!', 'red'], ['超激アツ!!!', 'gold']];
-  function pickYokoku(sym) {
-    if (window.__fxTest && window.__fxTest.yokoku !== undefined) return window.__fxTest.yokoku;
-    const tbl = sym === 0 ? YOKOKU.bad : YOKOKU.good;
-    let r = Math.random();
-    for (let i = 0; i < tbl.length; i++) { if (r < tbl[i]) return i; r -= tbl[i]; }
-    return 0;
-  }
-  function yokoku(tier) {
-    if (!tier) return;
-    Sfx.play('yokoku', tier);
-    cutin(YOKOKU_TEXT[tier][0], YOKOKU_TEXT[tier][1]);
-    if (tier >= 3) { patlamp(2.2); flash(true); FX.streaks(CX, CY, 120, 0.8, { colors: tier === 4 ? ['gold', 'white'] : ['red', 'white'] }); }
-    if (tier >= 4) setTimeout(yakumono, 900);
-  }
-  function reach(st) { // リーチ: 止まりかけた瞬間
-    stageEl.classList.add('reach');
-    Sfx.play('reach', st);
-    cutin(st === 3 ? 'スーパーリーチ' : 'リーチ！', 'white');
-    if (st >= 2) patlamp(st === 3 ? 4 : 1.6);
-  }
-
   /* ---------- 停止パターンの抽選（結果は確定済み。見せ方だけを変える） ----------
      ハズレ(0)で止まるとき …「当たりと思いきやハズレ」: 当たり絵柄で止まりかけて滑る／行きかけて戻される
      当たり・NEXT で止まるとき …「ハズレと思いきや当たり」: 0 で止まりかけて滑る／0 に行きかけて戻る／0 で一度止まって再始動
@@ -352,8 +307,6 @@ const Game = (function () {
     sureShown = true;
     stageEl.classList.add('sure');
     Sfx.play('kyuin');
-    cutin('確定', 'rainbow');
-    patlamp(3);
     flash(false);
     restart(cabinet, 'shake');
     FX.ring(CX, CY, 'white', 1200, 0.9);
@@ -389,7 +342,6 @@ const Game = (function () {
       await wait(1100);
     }
     const extra = {};
-    if (!sure && !sureShown) yokoku(pickYokoku(sym));
     if (sure === 'aura') extra.onStart = () => setTimeout(() => { if (busy) announceSure(); }, 900);
     if (sure === 'late') extra.onNear = announceSure;
 
@@ -402,8 +354,6 @@ const Game = (function () {
       await wait(1500);
       win.classList.remove('lose');
       Sfx.play('revive');
-      cutin('復活！', 'red');
-      patlamp(2);
       flash(false);
       restart(cabinet, 'shake');
       FX.ring(CX, CY, 'gold', 1100, 0.8);
@@ -440,7 +390,7 @@ const Game = (function () {
       onNear: () => { extra.onNear && extra.onNear(); },
       onTease: (dur) => {
         Sfx.play('tease', dur);
-        reach(st);
+        stageEl.classList.add('reach'); // 集中線で緊張感を出す
         $('content').querySelector('.spot').style.opacity = 1;
         if (st >= 2) for (let t = 0; t < dur - 0.2; t += st === 3 ? 0.5 : 0.62) beats.push(setTimeout(() => Sfx.play('heartbeat'), t * 1000));
         if (st === 3) $('dim').classList.add('on');
@@ -502,10 +452,8 @@ const Game = (function () {
     FX.fountain(120, 930, fin ? 160 : 110, fin ? 2.8 : 2.0, colors, { vx: 160 });
     FX.fountain(1480, 930, fin ? 160 : 110, fin ? 2.8 : 2.0, colors, { vx: -160 });
     FX.flakes(fin ? 200 : 130, 2.0, colors);
-    Sfx.play('don');
-    patlamp(fin ? 3.4 : 2.6);
     showBanner('next' + (fin ? ' final' : ''), fin ? 'FINAL STAGE' : 'STAGE UP', 'NEXT STAGE');
-    later(1.3, () => cutin(fin ? '最終決戦' : '突破!!', 'stage'));
+
     stageEl.dataset.win = fin ? 7 : 6; // 画面全体を当選時と同じ全開状態に
     for (let t = 0.5; t < (fin ? 3.2 : 2.5); t += fin ? 0.24 : 0.34) {
       later(t, () => {
@@ -571,7 +519,6 @@ const Game = (function () {
     await wait(350);
 
     // ステージ名の刻印（上から叩きつける）
-    Sfx.play('don');
     label.classList.add('show');
     stageEl.classList.add('named');
     await wait(330);
@@ -597,7 +544,6 @@ const Game = (function () {
     tm.forEach(clearTimeout);
 
     // 開門（ズームアウトしながら新ステージが現れる）
-    patlamp(1.8);
     label.classList.remove('show');
     stageEl.classList.remove('rolling');
     stageEl.classList.add('blast');
@@ -690,7 +636,7 @@ const Game = (function () {
       await wait(250);
       win.classList.add('lose');
       Sfx.play('zero');
-      setPlate('result zero', '0', '残念…');
+      setPlate('result zero', '0', '');
       await wait(1700);
       return;
     }
@@ -701,13 +647,6 @@ const Game = (function () {
     const later = (sec, fn) => timers.push(setTimeout(fn, sec * 1000));
     const colors = sureShown ? RAINBOW.concat(['white']) : ['gold', 'white'].concat(STAGE_COL[curStage]); // 金＋そのステージの色（確定中は虹）
 
-    // 「当たり」のカットイン → 金額表示
-    Sfx.play('atari', L);
-    patlamp(L >= 4 ? fx.dur : 1.2);
-    if (L >= 6) yakumono();
-    flash(true);
-    FX.burst(CX, CY, 120, { max: 1100, colors });
-    await cutin(L >= 7 ? '超大当たり!!!' : L >= 4 ? '大当たり!!' : '当たり！', sureShown ? 'rainbow' : L >= 4 ? 'gold' : 'red');
     win.classList.add('win');
     cabinet.classList.add('party');
     stageEl.dataset.win = L;
@@ -746,6 +685,8 @@ const Game = (function () {
 
     // 金粉と花火（レベルが上がるほど多く・速く・長く）
     if (fx.rain) FX.rain(fx.rain, fx.dur - 1.2, colors);
+    if (L >= 2) FX.coins(20 + L * 22, Math.max(0.6, fx.dur - 1.6)); // 金貨のシャワー（金額が上がるほど多い）
+    if (L >= 5) FX.flakes(L * 22, fx.dur - 1.5, colors);
     if (fx.fire) {
       for (let t = 0.6; t < fx.dur - 0.9; t += fx.fire) {
         later(t, () => {
