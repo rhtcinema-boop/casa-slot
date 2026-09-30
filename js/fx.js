@@ -6,6 +6,10 @@ const FX = (function () {
   let cv, ctx, raf = 0, last = 0, ambient = 0, ambAcc = 0;
   let parts = [], rings = [], lines = [], bolts = [];
   let timeScale = 1; // 1=等速。スローモーションや早回しに使う
+  /* 軽量化: 1フレームにかかった時間の平均を見て、重い端末では粒子数を自動で減らす。総数にも上限を設ける。 */
+  let Q = 0.75, avgMs = 16;
+  const MAX_PARTS = 520;
+  const qn = (n) => (parts.length > MAX_PARTS ? 0 : Math.max(1, Math.round(n * Q)));
   const sprites = {};
   const COLORS = { gold: [255, 205, 96], white: [255, 246, 220], silver: [214, 226, 240], red: [255, 80, 70], blue: [70, 140, 255], cyan: [120, 225, 255], violet: [185, 120, 255], orange: [255, 150, 50], yellow: [255, 235, 80], green: [90, 240, 120] };
 
@@ -33,6 +37,7 @@ const FX = (function () {
 
   /* 中心から放射状に弾ける */
   function burst(x, y, n, o) {
+    n = qn(n);
     o = o || {};
     const cols = o.colors || ['gold', 'gold', 'white'];
     for (let i = 0; i < n; i++) {
@@ -43,6 +48,7 @@ const FX = (function () {
   }
   /* 外周から一点へ光が集まる */
   function converge(x, y, n, dur) {
+    n = qn(n);
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, r = rnd(420, 900);
       parts.push({ conv: true, t: -rnd(0, dur * 0.55), life: dur * rnd(0.4, 0.55), sx: x + Math.cos(a) * r, sy: y + Math.sin(a) * r * 0.7, tx: x, ty: y, x: 0, y: 0, sw: rnd(1.2, 2.6), size: rnd(8, 24), c: pick(['gold', 'white', 'gold']), tw: 0 });
@@ -51,6 +57,7 @@ const FX = (function () {
   }
   /* 上から金粉が降る */
   function rain(n, dur, cols) {
+    n = qn(n);
     for (let i = 0; i < n; i++) {
       parts.push({ t: -rnd(0, dur), life: rnd(1.6, 2.6), x: rnd(0, CW), y: -OFF - 20, vx: rnd(-40, 40), vy: rnd(260, 560), g: 120, drag: 0.2, size: rnd(6, 18), c: pick(cols || ['gold', 'gold', 'white']), tw: Math.random() * 6 });
     }
@@ -69,6 +76,7 @@ const FX = (function () {
   function clear() { parts = []; rings = []; lines = []; bolts = []; heights = new Array(COLS).fill(0); }
   /* 集中線。inward: 外から中心へ / それ以外: 中心から外へ飛ぶ */
   function streaks(x, y, n, dur, o) {
+    n = qn(n);
     o = o || {};
     const cols = o.colors || ['gold', 'white'];
     for (let i = 0; i < n; i++) {
@@ -94,6 +102,7 @@ const FX = (function () {
   }
   /* 下から噴き上がる火花 */
   function fountain(x, y, n, dur, cols, o) {
+    n = qn(n);
     o = o || {};
     for (let i = 0; i < n; i++) {
       parts.push({ t: -rnd(0, dur), life: rnd(1.2, 2.0), x, y, vx: rnd(-240, 240) + (o.vx || 0), vy: -rnd(900, 1600), g: 1200, drag: 0.35, size: rnd(6, 18), c: pick(cols || ['gold', 'gold', 'white']), tw: Math.random() * 6 });
@@ -151,6 +160,7 @@ const FX = (function () {
   }
   /* チップの雨。o.land で下に積み上がる。o.size で大きさ。 */
   function chips(n, dur, cols, o) {
+    n = qn(n);
     o = o || {};
     cols = cols || ['red'];
     for (let i = 0; i < n; i++) {
@@ -161,6 +171,7 @@ const FX = (function () {
   }
   /* チップの噴水（下から噴き上がる） */
   function chipFountain(x, y, n, dur, cols, o) {
+    n = qn(n);
     o = o || {};
     for (let i = 0; i < n; i++) {
       const size = rnd(18, 26);
@@ -181,6 +192,7 @@ const FX = (function () {
   function setGround(y, cb) { groundY = y; onLand = cb || null; }
   /* トランプが舞う。o.sweep: 左から右へ流れる / それ以外: (x,y) から飛び散る */
   function cards(n, dur, o) {
+    n = qn(n);
     o = o || {};
     for (let i = 0; i < n; i++) {
       const p = { img: cardSprite(Math.floor(Math.random() * FACES.length)), card: true, t: -rnd(0, dur), life: 2.2, size: rnd(50, 74), rot: rnd(-0.6, 0.6), vr: rnd(-3, 3), sp: rnd(5, 10), c: 'gold', tw: 0, drag: 0.1 };
@@ -192,6 +204,7 @@ const FX = (function () {
   }
   /* 金箔の紙吹雪 */
   function flakes(n, dur, cols) {
+    n = qn(n);
     for (let i = 0; i < n; i++) {
       parts.push({ flake: true, t: -rnd(0, dur), life: rnd(2.2, 3.6), x: rnd(0, CW), y: -OFF - 20, vx: rnd(-70, 70), vy: rnd(200, 460), g: 50, drag: 0.4, size: rnd(9, 20), rot: rnd(0, 6), vr: rnd(-7, 7), c: pick(cols || ['gold', 'gold', 'white']), tw: 0 });
     }
@@ -199,6 +212,9 @@ const FX = (function () {
   }
 
   function loop(now) {
+    const rawMs = Math.min(100, now - last);
+    avgMs += (rawMs - avgMs) * 0.06;
+    Q = avgMs > 26 ? 0.4 : avgMs > 20 ? 0.58 : 0.8;
     const dt = Math.min(0.05, (now - last) / 1000) * timeScale;
     last = now;
     if (ambient > 0) {
