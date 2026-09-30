@@ -143,7 +143,38 @@ const UI = (function () {
     return pin === null ? null : role;
   }
 
-  return { toast, confirm, askPin, askNewPin, auth };
+  /* 数字入力パッド。Promise<number|null> */
+  function askNumber(o) {
+    return new Promise((resolve) => {
+      let v = '';
+      const wrap = document.createElement('div');
+      wrap.className = 'scrim';
+      wrap.innerHTML =
+        '<div class="card pinpad"><h2>' + esc(o.title) + '</h2><p class="sub"></p><div class="num-show"></div><div class="pin-keys">' +
+        [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => '<button data-k="' + n + '">' + n + '</button>').join('') +
+        '<button class="fn" data-k="del">削除</button><button data-k="0">0</button><button class="go" data-k="ok">決定</button></div>' +
+        '<button class="cancel" data-k="cancel">キャンセル</button></div>';
+      const sub = wrap.querySelector('.sub'), show = wrap.querySelector('.num-show'), go = wrap.querySelector('.go');
+      const valid = () => v !== '' && +v >= (o.min || 0) && +v <= (o.max || 9999);
+      const paint = () => { sub.textContent = o.sub || ''; show.textContent = v === '' ? '0' : String(+v); go.disabled = !valid(); };
+      wrap.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-k]');
+        if (!b) return;
+        const k = b.dataset.k;
+        if (k === 'cancel') { Sfx.play('button'); wrap.remove(); return resolve(null); }
+        if (k === 'del') { Sfx.play('key'); v = v.slice(0, -1); return paint(); }
+        if (k === 'ok') { if (!valid()) return; wrap.remove(); return resolve(+v); }
+        if (v.length >= String(o.max || 9999).length) return;
+        Sfx.play('key');
+        v += k;
+        paint();
+      });
+      paint();
+      root().appendChild(wrap);
+    });
+  }
+
+  return { toast, confirm, askPin, askNewPin, auth, askNumber };
 })();
 
 const Admin = (function () {
@@ -151,7 +182,7 @@ const Admin = (function () {
   const PAGE = 50;
   const TYPES = {
     PLAY: ['play', 'プレイ'], OVERFLOW_PLAY: ['over', '超過プレイ'],
-    SESSION_START: ['ops', '営業開始'], SESSION_END: ['ops', '営業終了'], NEXT_PLAY: ['ops', 'スタッフ認証'],
+    SESSION_START: ['ops', '営業開始'], SESSION_END: ['ops', '営業終了'], NEXT_PLAY: ['ops', '次のプレイ'], CREDIT_ADD: ['ops', 'クレジット追加'], CREDIT_SET: ['ops', 'クレジット変更'],
     DRAFT_SAVE: ['cfg', '設定保存'], ADJUST: ['cfg', '残存内訳調整'], CAP_RULES: ['cfg', '上限ルール変更'],
     PIN_SETUP: ['pin', 'PIN初期登録'], PIN_STAFF_REISSUE: ['pin', '営業設定PIN再発行'], PIN_ADMIN_CHANGE: ['pin', '管理者PIN変更'],
     AUTH_LOCKOUT: ['pin', 'PIN連続失敗'], ADMIN_LOGIN: ['pin', '設定画面ログイン'],
@@ -273,6 +304,8 @@ const Admin = (function () {
       '<div class="panel"><h4>内訳</h4><table class="tbl"><tr><th>最終結果</th><th class="n">初期本数</th><th class="n">消化済み</th><th class="n">残り</th></tr>' +
       Engine.OUTCOMES.map((o) => '<tr><td>' + keyLabel(o.key) + '</td><td class="n">' + ses.initial[o.key] + '</td><td class="n">' + ses.consumed[o.key] + '</td><td class="n">' + ses.remaining[o.key] + '</td></tr>').join('') +
       '</table></div>' +
+      '<div class="panel"><h4>クレジット</h4><div class="row"><div class="lbl" style="font-family:var(--font-ui);font-size:20px">残クレジット<small>1プレイで1消費。0 になると NEXT GAME でPINを求めます</small></div>' +
+      '<div class="stepper"><span class="lbl" style="min-width:70px;text-align:center">' + (s.credits || 0) + '</span><button class="btn sm ghost" data-act="credit-set">クレジットを変更</button></div></div></div>' +
       '<div class="acts"><button class="btn ghost" data-act="adjust" ' + (remain > 0 ? '' : 'disabled') + '>残存内訳を調整</button>' +
       '<button class="btn danger" data-act="end">営業終了</button></div>';
   }
@@ -311,7 +344,11 @@ const Admin = (function () {
         return '総本数 ' + d.total + '｜消化 ' + d.consumedTotal + '｜未消化で破棄 ' + d.remainTotal + '｜払出済みプライズ ' + fmtN(d.awarded) + '｜超過プレイ ' + d.overflowCount +
           (d.remainTotal ? '<br>破棄した残存内訳: ' + counts(d.remaining) : '');
       case 'NEXT_PLAY':
-        return 'プレイ #' + d.playNo + ' の結果確認後、次のプレイを許可';
+        return 'プレイ #' + d.playNo + ' の結果確認後、次のプレイへ' + (d.credits !== undefined ? '｜残クレジット ' + d.credits : '');
+      case 'CREDIT_ADD':
+        return d.amount + ' クレジット追加｜' + d.before + ' → ' + d.after;
+      case 'CREDIT_SET':
+        return 'クレジットを変更｜' + d.before + ' → ' + d.after;
       case 'DRAFT_SAVE':
         return '総本数 ' + d.total + '｜プライズ総額 ' + fmtN(d.prize) + '<br>内訳: ' + counts(d.counts);
       case 'ADJUST':
@@ -471,6 +508,13 @@ const Admin = (function () {
         case 'adjust-cancel': adjust = null; return render();
         case 'adjust-save': return saveAdjust();
         case 'end': return endSession();
+        case 'credit-set': {
+          const n = await UI.askNumber({ title: 'クレジットを変更', sub: '設定するクレジット数（0〜99）', min: 0, max: 99 });
+          if (n === null) return;
+          Store.transact((st) => { const before = st.credits || 0; st.credits = n; Store.log('CREDIT_SET', { before, after: n }, role); });
+          UI.toast('クレジットを ' + n + ' にしました。', 'ok');
+          return render();
+        }
         case 'hist-group': hist.group = b.dataset.g; hist.page = 0; return render();
         case 'hist-page': hist.page += +b.dataset.d; return render();
         case 'csv': return exportCsv();
@@ -580,9 +624,9 @@ const Admin = (function () {
       const c = st.session;
       Store.log('SESSION_END', {
         total: c.total, consumedTotal: c.total - Engine.sumCounts(c.remaining), remainTotal: Engine.sumCounts(c.remaining),
-        initial: c.initial, consumed: c.consumed, remaining: c.remaining, awarded: c.awarded, overflowCount: c.overflowCount, plays: c.playNo, startedAt: c.startedAt,
+        initial: c.initial, consumed: c.consumed, remaining: c.remaining, awarded: c.awarded, overflowCount: c.overflowCount, plays: c.playNo, startedAt: c.startedAt, creditsLeft: st.credits || 0,
       }, role);
-      st.session = null; st.draft = null; st.play = null; st.locked = false;
+      st.session = null; st.draft = null; st.play = null; st.locked = false; st.credits = 0;
     });
     loadForm();
     UI.toast('営業を終了しました。', 'ok');
