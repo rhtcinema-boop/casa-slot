@@ -294,7 +294,7 @@ const Game = (function () {
   function renderLockbar() {
     const p = Store.state.play;
     lockbar.innerHTML =
-      '<div class="res"><small>RESULT</small><b class="' + (p.value === 0 ? 'zero' : '') + '">' + fmtN(p.value) + '</b></div>' +
+      '<div class="res"><small>RESULT</small><b class="' + (p.value === 0 ? 'zero' : 'amt lv' + Math.max(1, WIN_LEVELS.filter((x) => x <= p.value).length)) + '">' + fmtN(p.value) + '</b></div>' +
       '<div class="res tot"><small>TOTAL</small><b class="' + (shownTotal() === 0 ? 'zero' : '') + '">' + fmtN(shownTotal()) + '</b></div>' +
       '<div class="side"><button class="btn" data-act="next">NEXT GAME</button></div>';
   }
@@ -851,7 +851,7 @@ const Game = (function () {
     FX.releasePile(); // 積み上がったチップを弾き飛ばして片付ける
     await hideBanner();
     cabinet.classList.remove('party');
-    setPlate('result', fmtN(v), '');
+    setPlate('result lv' + L, fmtN(v), ''); // 金額に応じた色
   }
 
   /* ---------- 「？」ボタン: 遊び方の簡単な説明（確率や残り本数は載せない） ---------- */
